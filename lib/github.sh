@@ -16,12 +16,14 @@ github_pr_open() {
   local draft=false
   local target_branch="main"
   local changelog_override=""
+  local commit_type="feat"
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --draft)     draft=true ;;
       --target)    target_branch="${2:?--target requires a branch name}"; shift ;;
       --changelog) changelog_override="${2:?--changelog requires a value}"; shift ;;
+      --type)      commit_type="${2:?--type requires a value (feat|fix|chore|...)}"; shift ;;
     esac
     shift
   done
@@ -32,7 +34,7 @@ github_pr_open() {
 
   local jira_url pr_title changelog description
   jira_url=$(_jira_ticket_url "$jira_output")
-  pr_title=$(_jira_title_from_ai "$ticket" "$jira_output")
+  pr_title=$(_jira_title_from_ai "$ticket" "$jira_output" "$commit_type")
 
   # Generate changelog
   if [[ -n "$changelog_override" ]]; then

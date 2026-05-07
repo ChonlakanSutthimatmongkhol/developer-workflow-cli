@@ -46,6 +46,7 @@ USAGE
 
   dx mr open <TICKET>                   Create GitLab MR from ticket
   dx mr open <TICKET> --draft           Create as Draft
+  dx mr open <TICKET> --type <type>     Commit type: feat|fix|chore|... (default: feat)
   dx mr open <TICKET> --target <branch> Override target branch
   dx mr open <TICKET> --changelog "..."  Override changelog
   dx mr list                             List open MRs assigned to me
@@ -53,6 +54,7 @@ USAGE
 
   dx pr open <TICKET>                   Create GitHub PR from ticket
   dx pr open <TICKET> --draft           Create as Draft
+  dx pr open <TICKET> --type <type>     Commit type: feat|fix|chore|... (default: feat)
   dx pr open <TICKET> --target <branch> Override target branch
   dx pr open <TICKET> --changelog "..."  Override changelog
   dx pr list                             List open PRs assigned to me
