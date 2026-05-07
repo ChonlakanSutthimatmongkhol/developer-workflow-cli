@@ -20,32 +20,25 @@ _load_env_file() {
 
 # ---------------------------------------------------------------------------
 # config_load — load env following priority order:
-#   1. DX_PROFILE env var → ~/.config/dx/profiles/$DX_PROFILE.env
-#   2. .dx.env in current directory
-#   3. ~/.config/dx/default.env
-#   4. Legacy fallback: env.mcp next to the dx binary
+#   1. .dx.env at git repo root (highest — project-local override)
+#   2. ~/.config/dx/default.env (global default)
+#   3. Legacy fallback: env.mcp next to the dx binary
 # ---------------------------------------------------------------------------
 config_load() {
   local script_dir
   script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-  # 4. Legacy fallback (lowest priority, load first)
+  # 3. Legacy fallback (lowest priority, load first)
   _load_env_file "$script_dir/env.mcp"
 
-  # 3. Global default
+  # 2. Global default
   _load_env_file "$_DX_DEFAULT_ENV"
 
-  # 2. Project-local override
-  _load_env_file "$(pwd)/.dx.env"
-
-  # 1. Named profile (highest priority)
-  if [[ -n "${DX_PROFILE:-}" ]]; then
-    local profile_file="$_DX_CONFIG_DIR/profiles/${DX_PROFILE}.env"
-    if [[ ! -f "$profile_file" ]]; then
-      echo "❌ Profile not found: $profile_file" >&2
-      exit 1
-    fi
-    _load_env_file "$profile_file"
+  # 1. Project-local override — resolved from git root so any subdir works
+  local git_root
+  git_root="$(git rev-parse --show-toplevel 2>/dev/null)" || true
+  if [[ -n "$git_root" ]]; then
+    _load_env_file "$git_root/.dx.env"
   fi
 }
 
@@ -176,18 +169,60 @@ cmd_auth_whoami() {
 }
 
 # ---------------------------------------------------------------------------
-# cmd_auth_switch — switch active profile
+# cmd_auth_init — create project-local .dx.env at git repo root
 # ---------------------------------------------------------------------------
-cmd_auth_switch() {
-  local profile="${1:?Usage: dx auth switch <profile>}"
-  local profile_file="$_DX_CONFIG_DIR/profiles/${profile}.env"
-  if [[ ! -f "$profile_file" ]]; then
-    echo "❌ Profile not found: $profile_file" >&2
-    echo "Available profiles:"
-    ls "$_DX_CONFIG_DIR/profiles/" 2>/dev/null | sed 's/\.env$//' | sed 's/^/  /' || echo "  (none)"
+cmd_auth_init() {
+  local git_root
+  git_root="$(git rev-parse --show-toplevel 2>/dev/null)" || {
+    echo "❌ Not inside a git repository." >&2
     exit 1
+  }
+  local target="$git_root/.dx.env"
+
+  if [[ -f "$target" ]]; then
+    printf ".dx.env already exists here. Overwrite? (y/N) "
+    read -r answer
+    [[ "$answer" =~ ^[Yy]$ ]] || { echo "Aborted."; return 0; }
   fi
-  export DX_PROFILE="$profile"
-  _load_env_file "$profile_file"
-  echo "✅ Switched to profile: $profile"
+
+  cat > "$target" <<'EOF'
+# .dx.env — project-local overrides (do not commit)
+# Only set keys that differ from ~/.config/dx/default.env
+
+# JIRA_URL=https://yourco.atlassian.net
+# JIRA_USERNAME=you@yourco.com
+# JIRA_API_TOKEN=your-token-here
+
+# CONFLUENCE_URL=https://yourco.atlassian.net/wiki
+# CONFLUENCE_USERNAME=you@yourco.com
+# CONFLUENCE_API_TOKEN=your-token-here
+
+# GITLAB_HOST=gitlab.yourco.com
+# GITLAB_TOKEN=your-token-here
+
+# GITHUB_HOST=github.com
+# GITHUB_TOKEN=your-token-here
+EOF
+  chmod 600 "$target"
+
+  # Add .dx.env to .gitignore at repo root
+  local gitignore="$git_root/.gitignore"
+  if ! grep -qxF '.dx.env' "$gitignore" 2>/dev/null; then
+    echo '.dx.env' >> "$gitignore"
+    echo "✅ Added .dx.env to .gitignore"
+  fi
+
+  local editor
+  if [[ -n "${EDITOR:-}" ]]; then
+    editor="$EDITOR"
+  elif command -v code &>/dev/null; then
+    editor="code --wait"
+  elif command -v nano &>/dev/null; then
+    editor="nano"
+  else
+    editor="vi"
+  fi
+
+  $editor "$target"
+  echo "✅ Project config saved: $target"
 }
