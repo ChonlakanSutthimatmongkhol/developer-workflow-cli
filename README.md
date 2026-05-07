@@ -157,7 +157,7 @@ dx pr view <PR-ID>                       # open PR in browser
 
 ## MR/PR Description Template
 
-Located at `templates/mr_description.md`. Edit to match your team's format.
+Located at `templates/mr_description_mobile.md`. Edit to match your team's format.
 
 ```markdown
 ## JIRA Ticket ##
@@ -190,7 +190,7 @@ dx/
 │   ├── github.sh              ← gh wrapper, dx pr commands
 │   └── git.sh                 ← changelog from git log
 ├── templates/
-│   └── mr_description.md      ← MR/PR description template
+│   └── mr_description_mobile.md      ← MR/PR description template
 ├── install.sh                 ← one-time symlink setup
 └── README.md
 ```

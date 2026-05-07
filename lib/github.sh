@@ -43,7 +43,7 @@ github_pr_open() {
 
   description=$(sed -e "s|{{JIRA_URL}}|${jira_url}|g" \
                     -e "s|{{CHANGELOG}}|${changelog}|g" \
-                    "$_DX_SCRIPT_DIR_GITHUB/templates/mr_description.md")
+                    "$_DX_SCRIPT_DIR_GITHUB/templates/mr_description_mobile.md")
 
   # Build gh command
   local gh_args=(pr create --title "$pr_title" --body "$description" --assignee @me --base "$target_branch")
