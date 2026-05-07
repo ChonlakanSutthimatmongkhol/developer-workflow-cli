@@ -80,9 +80,19 @@ Get tokens:
 
 ### Priority order (highest → lowest)
 
-1. `.dx.env` at git repo root — project-local override (created by `dx auth init`)
-2. `~/.config/dx/default.env` — user global
-3. `env.mcp` next to the script — legacy fallback
+1. `.dx.env` at git repo root — project override (`dx auth init`)
+2. `DX_PROFILE` → `~/.config/dx/profiles/<name>.env` — named profile
+3. `~/.config/dx/default.env` — global default
+4. `env.mcp` next to the script — legacy fallback
+
+### Named profiles
+
+```bash
+dx auth profile kkpb          # create or edit ~/.config/dx/profiles/kkpb.env
+dx auth profile list          # list all profiles
+eval "$(dx auth switch kkpb)" # activate profile in current shell
+DX_PROFILE=kkpb dx jira read DE-1234  # one-off
+```
 
 ### Per-project config
 
@@ -91,8 +101,7 @@ cd ~/my-project
 dx auth init      # creates .dx.env at git root, adds to .gitignore, opens editor
 ```
 
-Only set the keys that differ from your global config — everything else falls back automatically.
-`.dx.env` is resolved from the git repo root, so it works from any subdirectory.
+`.dx.env` is resolved from the git repo root so it works from any subdirectory.
 
 ---
 
@@ -101,9 +110,12 @@ Only set the keys that differ from your global config — everything else falls 
 ### Auth
 
 ```bash
-dx auth login    # create global config + open in editor
-dx auth init     # create project-local .dx.env at git repo root
-dx auth whoami   # show active config + test connections
+dx auth login                 # create/edit global config
+dx auth profile <name>        # create or edit a named profile
+dx auth profile list          # list all profiles
+eval "$(dx auth switch <name>)"  # activate profile in current shell
+dx auth init                  # create project-local .dx.env at git repo root
+dx auth whoami                # show active config + test connections
 ```
 
 ### Jira

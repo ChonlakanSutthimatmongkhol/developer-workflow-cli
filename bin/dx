@@ -28,9 +28,12 @@ _dx_help() {
 dx — Developer Workflow CLI
 
 USAGE
-  dx auth login              Create global config (~/.config/dx/default.env)
-  dx auth init               Create project-local .dx.env at git repo root
-  dx auth whoami             Show active config + test connections
+  dx auth login                Create/edit global config (~/.config/dx/default.env)
+  dx auth profile <name>       Create or edit a named profile
+  dx auth profile list         List all profiles
+  dx auth switch <name>        Print export command to activate a profile
+  dx auth init                 Create project-local .dx.env at git repo root
+  dx auth whoami               Show active config + test connections
 
   dx jira read <TICKET|URL>            Human-readable ticket
   dx jira read <TICKET|URL> --ai       Compact format for AI
@@ -126,10 +129,12 @@ case "$CMD" in
     SUB="${1:-}"
     [[ $# -gt 0 ]] && shift || true
     case "$SUB" in
-      login)  cmd_auth_login ;;
-      init)   cmd_auth_init ;;
-      whoami) cmd_auth_whoami ;;
-      *)      echo "Usage: dx auth login|init|whoami" >&2; exit 1 ;;
+      login)   cmd_auth_login ;;
+      profile) cmd_auth_profile "$@" ;;
+      switch)  cmd_auth_switch "$@" ;;
+      init)    cmd_auth_init ;;
+      whoami)  cmd_auth_whoami ;;
+      *)       echo "Usage: dx auth login|profile|switch|init|whoami" >&2; exit 1 ;;
     esac
     ;;
 
