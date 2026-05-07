@@ -116,6 +116,7 @@ CONFLUENCE_API_TOKEN=your-token-here
 # ─────────────────────────────────────────
 # GitHub — needed for: dx pr
 # ─────────────────────────────────────────
+# GITHUB_HOST=github.com
 # GITHUB_TOKEN=your-token-here
 EOF
 
