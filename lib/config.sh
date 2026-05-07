@@ -93,12 +93,19 @@ cmd_auth_login() {
 # ~/.config/dx/default.env — global credentials
 
 # ─────────────────────────────────────────
-# Atlassian (Jira + Confluence) — REQUIRED
+# Jira — REQUIRED
 # Get token: https://id.atlassian.com/manage-profile/security/api-tokens
 # ─────────────────────────────────────────
 JIRA_URL=https://yourco.atlassian.net
 JIRA_USERNAME=you@yourco.com
 JIRA_API_TOKEN=your-token-here
+
+# ─────────────────────────────────────────
+# Confluence — REQUIRED
+# ─────────────────────────────────────────
+CONFLUENCE_URL=https://yourco.atlassian.net/wiki
+CONFLUENCE_USERNAME=you@yourco.com
+CONFLUENCE_API_TOKEN=your-token-here
 
 # ─────────────────────────────────────────
 # GitLab — needed for: dx mr
@@ -185,12 +192,19 @@ cmd_auth_init() {
 # .dx.env — dx credentials for this project (do not commit)
 
 # ─────────────────────────────────────────
-# Atlassian (Jira + Confluence) — REQUIRED
+# Jira — REQUIRED
 # Get token: https://id.atlassian.com/manage-profile/security/api-tokens
 # ─────────────────────────────────────────
 JIRA_URL=https://yourco.atlassian.net
 JIRA_USERNAME=you@yourco.com
 JIRA_API_TOKEN=your-token-here
+
+# ─────────────────────────────────────────
+# Confluence — REQUIRED
+# ─────────────────────────────────────────
+CONFLUENCE_URL=https://yourco.atlassian.net/wiki
+CONFLUENCE_USERNAME=you@yourco.com
+CONFLUENCE_API_TOKEN=your-token-here
 
 # ─────────────────────────────────────────
 # GitLab — needed for: dx mr
