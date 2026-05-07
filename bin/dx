@@ -28,8 +28,7 @@ _dx_help() {
 dx — Developer Workflow CLI
 
 USAGE
-  dx auth login              Create global config and open in editor
-  dx auth init               Create project-local .dx.env at git repo root
+  dx auth init               Create .dx.env at git repo root + open in editor
   dx auth whoami             Show active config + test connections
 
   dx jira read <TICKET|URL>            Human-readable ticket
@@ -126,10 +125,9 @@ case "$CMD" in
     SUB="${1:-}"
     [[ $# -gt 0 ]] && shift || true
     case "$SUB" in
-      login)  cmd_auth_login ;;
       init)   cmd_auth_init ;;
-      whoami) config_load; cmd_auth_whoami ;;
-      *)      echo "Usage: dx auth login|init|whoami" >&2; exit 1 ;;
+      whoami) cmd_auth_whoami ;;
+      *)      echo "Usage: dx auth init|whoami" >&2; exit 1 ;;
     esac
     ;;
 

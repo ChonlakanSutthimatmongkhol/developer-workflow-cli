@@ -2,9 +2,6 @@
 # lib/config.sh — Config loading, auth commands, platform validation
 # =============================================================================
 
-_DX_CONFIG_DIR="$HOME/.config/dx"
-_DX_DEFAULT_ENV="$_DX_CONFIG_DIR/default.env"
-
 # ---------------------------------------------------------------------------
 # Load a single env file (KEY=VALUE lines only, ignores comments)
 # ---------------------------------------------------------------------------
@@ -19,22 +16,17 @@ _load_env_file() {
 }
 
 # ---------------------------------------------------------------------------
-# config_load — load env following priority order:
-#   1. .dx.env at git repo root (highest — project-local override)
-#   2. ~/.config/dx/default.env (global default)
-#   3. Legacy fallback: env.mcp next to the dx binary
+# config_load — load .dx.env from git repo root only
+#   Legacy fallback: env.mcp next to the dx binary (for migration)
 # ---------------------------------------------------------------------------
 config_load() {
   local script_dir
   script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-  # 3. Legacy fallback (lowest priority, load first)
+  # Legacy fallback (env.mcp in same dir as script)
   _load_env_file "$script_dir/env.mcp"
 
-  # 2. Global default
-  _load_env_file "$_DX_DEFAULT_ENV"
-
-  # 1. Project-local override — resolved from git root so any subdir works
+  # .dx.env at git root — resolved so any subdirectory works
   local git_root
   git_root="$(git rev-parse --show-toplevel 2>/dev/null)" || true
   if [[ -n "$git_root" ]]; then
@@ -52,7 +44,7 @@ config_validate_atlassian() {
   [[ -z "${JIRA_API_TOKEN:-}" ]] && missing+=("JIRA_API_TOKEN")
   if [[ ${#missing[@]} -gt 0 ]]; then
     echo "❌ Atlassian not configured (missing: ${missing[*]})." >&2
-    echo "👉 Run: dx auth login" >&2
+    echo "👉 Run: dx auth init" >&2
     exit 1
   fi
 }
@@ -63,7 +55,7 @@ config_validate_gitlab() {
   [[ -z "${GITLAB_TOKEN:-}" ]] && missing+=("GITLAB_TOKEN")
   if [[ ${#missing[@]} -gt 0 ]]; then
     echo "❌ GitLab not configured (missing: ${missing[*]})." >&2
-    echo "👉 Open $_DX_DEFAULT_ENV and uncomment the GitLab section." >&2
+    echo "👉 Add GITLAB_HOST and GITLAB_TOKEN to .dx.env" >&2
     exit 1
   fi
 }
@@ -73,75 +65,23 @@ config_validate_github() {
   [[ -z "${GITHUB_TOKEN:-}" ]] && missing+=("GITHUB_TOKEN")
   if [[ ${#missing[@]} -gt 0 ]]; then
     echo "❌ GitHub not configured (missing: ${missing[*]})." >&2
-    echo "👉 Open $_DX_DEFAULT_ENV and uncomment the GitHub section." >&2
+    echo "👉 Add GITHUB_TOKEN to .dx.env" >&2
     exit 1
   fi
-}
-
-# ---------------------------------------------------------------------------
-# cmd_auth_login — create config file + open in editor
-# ---------------------------------------------------------------------------
-cmd_auth_login() {
-  if [[ -f "$_DX_DEFAULT_ENV" ]]; then
-    printf "Config already exists at %s. Overwrite? (y/N) " "$_DX_DEFAULT_ENV"
-    read -r answer
-    [[ "$answer" =~ ^[Yy]$ ]] || { echo "Aborted."; return 0; }
-  fi
-
-  mkdir -p "$_DX_CONFIG_DIR"
-  chmod 700 "$_DX_CONFIG_DIR"
-
-  cat > "$_DX_DEFAULT_ENV" <<'EOF'
-# ~/.config/dx/default.env
-
-# ─────────────────────────────────────────
-# Atlassian (Jira + Confluence) — REQUIRED
-# Get token: https://id.atlassian.com/manage-profile/security/api-tokens
-# ─────────────────────────────────────────
-JIRA_URL=https://yourco.atlassian.net
-JIRA_USERNAME=you@yourco.com
-JIRA_API_TOKEN=your-token-here
-
-# ─────────────────────────────────────────
-# GitLab — optional, needed for: dx mr
-# Get token: https://gitlab.yourco.com/-/profile/personal_access_tokens
-# Scopes needed: api, read_user
-# ─────────────────────────────────────────
-# GITLAB_HOST=gitlab.yourco.com
-# GITLAB_TOKEN=your-token-here
-
-# ─────────────────────────────────────────
-# GitHub — optional, needed for: dx pr
-# Get token: https://github.com/settings/tokens
-# Scopes needed: repo
-# ─────────────────────────────────────────
-# GITHUB_HOST=github.com
-# GITHUB_TOKEN=your-token-here
-EOF
-
-  chmod 600 "$_DX_DEFAULT_ENV"
-
-  local editor
-  if [[ -n "${EDITOR:-}" ]]; then
-    editor="$EDITOR"
-  elif command -v code &>/dev/null; then
-    editor="code --wait"
-  elif command -v nano &>/dev/null; then
-    editor="nano"
-  else
-    editor="vi"
-  fi
-
-  $editor "$_DX_DEFAULT_ENV"
-  echo "✅ Config saved. Run: dx auth whoami"
 }
 
 # ---------------------------------------------------------------------------
 # cmd_auth_whoami — show active config + test connections
 # ---------------------------------------------------------------------------
 cmd_auth_whoami() {
+  local git_root
+  git_root="$(git rev-parse --show-toplevel 2>/dev/null)" || true
   echo "=== Active Config ==="
-  echo "Config file : ${DX_PROFILE:+~/.config/dx/profiles/$DX_PROFILE.env}${DX_PROFILE:-$_DX_DEFAULT_ENV}"
+  if [[ -n "$git_root" && -f "$git_root/.dx.env" ]]; then
+    echo "Config file : $git_root/.dx.env"
+  else
+    echo "Config file : (none — run: dx auth init)"
+  fi
   echo ""
 
   if [[ -n "${JIRA_URL:-}" ]]; then
@@ -186,25 +126,40 @@ cmd_auth_init() {
   fi
 
   cat > "$target" <<'EOF'
-# .dx.env — project-local overrides (do not commit)
-# Only set keys that differ from ~/.config/dx/default.env
+# .dx.env — dx credentials for this project (do not commit)
 
-# JIRA_URL=https://yourco.atlassian.net
-# JIRA_USERNAME=you@yourco.com
-# JIRA_API_TOKEN=your-token-here
+# ─────────────────────────────────────────
+# Atlassian (Jira + Confluence) — REQUIRED
+# Get token: https://id.atlassian.com/manage-profile/security/api-tokens
+# ─────────────────────────────────────────
+JIRA_URL=https://yourco.atlassian.net
+JIRA_USERNAME=you@yourco.com
+JIRA_API_TOKEN=your-token-here
 
-# CONFLUENCE_URL=https://yourco.atlassian.net/wiki
-# CONFLUENCE_USERNAME=you@yourco.com
-# CONFLUENCE_API_TOKEN=your-token-here
-
+# ─────────────────────────────────────────
+# GitLab — needed for: dx mr
+# Get token: https://gitlab.yourco.com/-/profile/personal_access_tokens
+# Scopes needed: api, read_user
+# ─────────────────────────────────────────
 # GITLAB_HOST=gitlab.yourco.com
 # GITLAB_TOKEN=your-token-here
 
-# GITHUB_HOST=github.com
+# ─────────────────────────────────────────
+# GitHub — needed for: dx pr
+# Get token: https://github.com/settings/tokens
+# Scopes: repo
+# ─────────────────────────────────────────
 # GITHUB_TOKEN=your-token-here
 EOF
   chmod 600 "$target"
 
-  echo "✅ Project config created: $target"
-  echo "👉 Edit it to override credentials for this project"
+  # Add *.env to .gitignore if not already there
+  local gitignore="$git_root/.gitignore"
+  if ! grep -qF '*.env' "$gitignore" 2>/dev/null; then
+    echo '*.env' >> "$gitignore"
+    echo "✅ Added *.env to .gitignore"
+  fi
+
+  echo "✅ Created: $target"
+  echo "👉 Fill in your credentials, then run: dx auth whoami"
 }
