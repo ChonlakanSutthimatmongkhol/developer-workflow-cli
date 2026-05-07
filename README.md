@@ -29,12 +29,10 @@ brew install glab gh
 ## Install
 
 ```bash
-git clone https://github.com/ChonlakanSutthimatmongkhol/developer-workflow-cli.git ~/.dx
-cd ~/.dx
-./install.sh
+curl -fsSL https://raw.githubusercontent.com/ChonlakanSutthimatmongkhol/developer-workflow-cli/main/install.sh | bash
 ```
 
-Restart your shell (or `source ~/.zshrc`), then:
+Then restart your shell (or `source ~/.zshrc`):
 
 ```bash
 dx auth login     # create config and fill in credentials
@@ -43,16 +41,16 @@ dx auth whoami    # verify connection
 
 ### Update
 
-No reinstall needed — the symlink always points to the repo:
+Same command — idempotent, safe to re-run:
 
 ```bash
-cd ~/.dx && git pull
+curl -fsSL https://raw.githubusercontent.com/ChonlakanSutthimatmongkhol/developer-workflow-cli/main/install.sh | bash
 ```
 
 ### Uninstall
 
 ```bash
-rm ~/.local/bin/dx
+rm ~/.local/bin/dx && rm -rf ~/.local/share/dx
 ```
 
 ---
