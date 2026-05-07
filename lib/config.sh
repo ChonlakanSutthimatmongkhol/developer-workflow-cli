@@ -16,17 +16,22 @@ _load_env_file() {
 }
 
 # ---------------------------------------------------------------------------
-# config_load — load .dx.env from git repo root only
-#   Legacy fallback: env.mcp next to the dx binary (for migration)
+# config_load — priority order (highest wins, load lowest first):
+#   1. .dx.env at git repo root  — project override
+#   2. ~/.config/dx/default.env  — global default
+#   3. env.mcp next to binary    — legacy fallback
 # ---------------------------------------------------------------------------
 config_load() {
   local script_dir
   script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-  # Legacy fallback (env.mcp in same dir as script)
+  # 3. Legacy fallback
   _load_env_file "$script_dir/env.mcp"
 
-  # .dx.env at git root — resolved so any subdirectory works
+  # 2. Global default
+  _load_env_file "$HOME/.config/dx/default.env"
+
+  # 1. Project-local override — git root so any subdir works
   local git_root
   git_root="$(git rev-parse --show-toplevel 2>/dev/null)" || true
   if [[ -n "$git_root" ]]; then
@@ -44,7 +49,7 @@ config_validate_atlassian() {
   [[ -z "${JIRA_API_TOKEN:-}" ]] && missing+=("JIRA_API_TOKEN")
   if [[ ${#missing[@]} -gt 0 ]]; then
     echo "❌ Atlassian not configured (missing: ${missing[*]})." >&2
-    echo "👉 Run: dx auth init" >&2
+    echo "👉 Run: dx auth login" >&2
     exit 1
   fi
 }
@@ -55,7 +60,7 @@ config_validate_gitlab() {
   [[ -z "${GITLAB_TOKEN:-}" ]] && missing+=("GITLAB_TOKEN")
   if [[ ${#missing[@]} -gt 0 ]]; then
     echo "❌ GitLab not configured (missing: ${missing[*]})." >&2
-    echo "👉 Add GITLAB_HOST and GITLAB_TOKEN to .dx.env" >&2
+    echo "👉 Add GITLAB_HOST and GITLAB_TOKEN to ~/.config/dx/default.env or .dx.env" >&2
     exit 1
   fi
 }
@@ -65,9 +70,59 @@ config_validate_github() {
   [[ -z "${GITHUB_TOKEN:-}" ]] && missing+=("GITHUB_TOKEN")
   if [[ ${#missing[@]} -gt 0 ]]; then
     echo "❌ GitHub not configured (missing: ${missing[*]})." >&2
-    echo "👉 Add GITHUB_TOKEN to .dx.env" >&2
+    echo "👉 Add GITHUB_TOKEN to ~/.config/dx/default.env or .dx.env" >&2
     exit 1
   fi
+}
+
+# ---------------------------------------------------------------------------
+# cmd_auth_login — create global config + open in editor
+# ---------------------------------------------------------------------------
+cmd_auth_login() {
+  local config="$HOME/.config/dx/default.env"
+  if [[ -f "$config" ]]; then
+    printf "Config already exists at %s. Overwrite? (y/N) " "$config"
+    read -r answer
+    [[ "$answer" =~ ^[Yy]$ ]] || { echo "Aborted."; return 0; }
+  fi
+
+  mkdir -p "$HOME/.config/dx"
+  chmod 700 "$HOME/.config/dx"
+
+  cat > "$config" <<'EOF'
+# ~/.config/dx/default.env — global credentials
+
+# ─────────────────────────────────────────
+# Atlassian (Jira + Confluence) — REQUIRED
+# Get token: https://id.atlassian.com/manage-profile/security/api-tokens
+# ─────────────────────────────────────────
+JIRA_URL=https://yourco.atlassian.net
+JIRA_USERNAME=you@yourco.com
+JIRA_API_TOKEN=your-token-here
+
+# ─────────────────────────────────────────
+# GitLab — needed for: dx mr
+# ─────────────────────────────────────────
+# GITLAB_HOST=gitlab.yourco.com
+# GITLAB_TOKEN=your-token-here
+
+# ─────────────────────────────────────────
+# GitHub — needed for: dx pr
+# ─────────────────────────────────────────
+# GITHUB_TOKEN=your-token-here
+EOF
+
+  chmod 600 "$config"
+
+  local editor
+  if   [[ -n "${EDITOR:-}" ]];          then editor="$EDITOR"
+  elif command -v code &>/dev/null;      then editor="code --wait"
+  elif command -v nano &>/dev/null;      then editor="nano"
+  else                                        editor="vi"
+  fi
+
+  $editor "$config"
+  echo "✅ Config saved. Run: dx auth whoami"
 }
 
 # ---------------------------------------------------------------------------
@@ -78,9 +133,10 @@ cmd_auth_whoami() {
   git_root="$(git rev-parse --show-toplevel 2>/dev/null)" || true
   echo "=== Active Config ==="
   if [[ -n "$git_root" && -f "$git_root/.dx.env" ]]; then
-    echo "Config file : $git_root/.dx.env"
+    echo "Global  : $HOME/.config/dx/default.env"
+    echo "Project : $git_root/.dx.env (overrides global)"
   else
-    echo "Config file : (none — run: dx auth init)"
+    echo "Global  : $HOME/.config/dx/default.env"
   fi
   echo ""
 
