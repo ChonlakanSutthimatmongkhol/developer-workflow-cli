@@ -32,7 +32,6 @@ USAGE
   dx auth profile <name>       Create or edit a named profile
   dx auth profile list         List all profiles
   dx auth switch <name>        Print export command to activate a profile
-  dx auth init                 Create project-local .dx.env at git repo root
   dx auth whoami               Show active config + test connections
 
   dx jira read <TICKET|URL>            Human-readable ticket
@@ -132,9 +131,8 @@ case "$CMD" in
       login)   cmd_auth_login ;;
       profile) cmd_auth_profile "$@" ;;
       switch)  cmd_auth_switch "$@" ;;
-      init)    cmd_auth_init ;;
       whoami)  cmd_auth_whoami ;;
-      *)       echo "Usage: dx auth login|profile|switch|init|whoami" >&2; exit 1 ;;
+      *)       echo "Usage: dx auth login|profile|switch|whoami" >&2; exit 1 ;;
     esac
     ;;
 
