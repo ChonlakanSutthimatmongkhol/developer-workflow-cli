@@ -212,17 +212,6 @@ EOF
     echo "✅ Added .dx.env to .gitignore"
   fi
 
-  local editor
-  if [[ -n "${EDITOR:-}" ]]; then
-    editor="$EDITOR"
-  elif command -v code &>/dev/null; then
-    editor="code --wait"
-  elif command -v nano &>/dev/null; then
-    editor="nano"
-  else
-    editor="vi"
-  fi
-
-  $editor "$target"
-  echo "✅ Project config saved: $target"
+  echo "✅ Project config created: $target"
+  echo "👉 Edit it to override credentials for this project"
 }
