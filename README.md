@@ -60,16 +60,22 @@ rm ~/.local/bin/dx && rm -rf ~/.local/share/dx
 Config file: `~/.config/dx/default.env` (created by `dx auth login`)
 
 ```bash
-# Atlassian — REQUIRED
+# Jira — REQUIRED
 JIRA_URL=https://yourco.atlassian.net
 JIRA_USERNAME=you@yourco.com
 JIRA_API_TOKEN=your-token-here
+
+# Confluence — REQUIRED
+CONFLUENCE_URL=https://yourco.atlassian.net/wiki
+CONFLUENCE_USERNAME=you@yourco.com
+CONFLUENCE_API_TOKEN=your-token-here
 
 # GitLab — needed for: dx mr
 GITLAB_HOST=gitlab.yourco.com
 GITLAB_TOKEN=your-token-here
 
 # GitHub — needed for: dx pr
+GITHUB_HOST=github.com
 GITHUB_TOKEN=your-token-here
 ```
 
