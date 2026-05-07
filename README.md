@@ -82,24 +82,19 @@ Get tokens:
 
 ### Priority order (highest → lowest)
 
-1. `DX_PROFILE` env var → `~/.config/dx/profiles/$DX_PROFILE.env`
-2. `.dx.env` in current directory (project-local / CI)
-3. `~/.config/dx/default.env` (user global)
-4. `env.mcp` in same directory as the script (legacy fallback)
+1. `.dx.env` at git repo root — project-local override (created by `dx auth init`)
+2. `~/.config/dx/default.env` — user global
+3. `env.mcp` next to the script — legacy fallback
 
-### Multiple profiles
+### Per-project config
 
 ```bash
-# Create a profile
-cp ~/.config/dx/default.env ~/.config/dx/profiles/work.env
-# edit ~/.config/dx/profiles/work.env
-
-# Switch
-dx auth switch work
-
-# Or one-off
-DX_PROFILE=work dx jira read DE-1234
+cd ~/my-project
+dx auth init      # creates .dx.env at git root, adds to .gitignore, opens editor
 ```
+
+Only set the keys that differ from your global config — everything else falls back automatically.
+`.dx.env` is resolved from the git repo root, so it works from any subdirectory.
 
 ---
 
@@ -108,9 +103,9 @@ DX_PROFILE=work dx jira read DE-1234
 ### Auth
 
 ```bash
-dx auth login              # create config + open in editor
-dx auth whoami             # show active config + test connections
-dx auth switch <profile>   # switch between profiles
+dx auth login    # create global config + open in editor
+dx auth init     # create project-local .dx.env at git repo root
+dx auth whoami   # show active config + test connections
 ```
 
 ### Jira
