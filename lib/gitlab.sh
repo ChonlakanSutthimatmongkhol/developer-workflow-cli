@@ -1,0 +1,97 @@
+# =============================================================================
+# lib/gitlab.sh — GitLab glab wrapper for dx mr commands
+# Assumes GITLAB_HOST and GITLAB_TOKEN are already exported by lib/config.sh
+# =============================================================================
+
+_DX_SCRIPT_DIR_GITLAB="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Extract Jira ticket URL from atlassian_read --ai output
+_jira_ticket_url() {
+  local output="$1"
+  echo "$output" | grep '^URL:' | head -1 | sed 's/^URL: //'
+}
+
+# Extract summary line from atlassian_read --ai output → "DE-1234 Summary text"
+_jira_title_from_ai() {
+  local ticket="$1"
+  local output="$2"
+  # First line format: "# [DE-1234] Summary text"
+  local summary
+  summary=$(echo "$output" | head -1 | sed 's/^# \[//;s/\] /: /')
+  echo "$summary"
+}
+
+# Render the MR/PR description template
+_render_mr_template() {
+  local jira_url="$1"
+  local changelog="$2"
+  local template="$_DX_SCRIPT_DIR_GITLAB/templates/mr_description.md"
+  sed -e "s|{{JIRA_URL}}|${jira_url}|g" \
+      -e "s|{{CHANGELOG}}|${changelog}|g" \
+      "$template"
+}
+
+# ---------------------------------------------------------------------------
+# gitlab_mr_open — create MR from a Jira ticket
+# Usage: gitlab_mr_open <TICKET> [--draft] [--target <branch>] [--changelog "..."]
+# ---------------------------------------------------------------------------
+gitlab_mr_open() {
+  local ticket="${1:?Usage: dx mr open <TICKET>}"
+  shift
+
+  local draft=false
+  local target_branch="main"
+  local changelog_override=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --draft)     draft=true ;;
+      --target)    target_branch="${2:?--target requires a branch name}"; shift ;;
+      --changelog) changelog_override="${2:?--changelog requires a value}"; shift ;;
+    esac
+    shift
+  done
+
+  # Fetch Jira ticket info
+  local jira_output
+  jira_output=$(atlassian_read "$ticket" --ai)
+
+  local jira_url mr_title changelog description
+  jira_url=$(_jira_ticket_url "$jira_output")
+  mr_title=$(_jira_title_from_ai "$ticket" "$jira_output")
+
+  # Generate changelog
+  if [[ -n "$changelog_override" ]]; then
+    changelog="$changelog_override"
+  else
+    changelog=$(git_changelog "origin/${target_branch}" 2>/dev/null || echo "- (no commits ahead of ${target_branch})")
+  fi
+
+  description=$(_render_mr_template "$jira_url" "$changelog")
+
+  # Build glab command
+  local glab_args=(mr create --title "$mr_title" --description "$description" --assignee @me --target-branch "$target_branch" --yes)
+  $draft && glab_args+=(--draft)
+
+  GITLAB_TOKEN="$GITLAB_TOKEN" "${glab_args[@]}"
+
+  echo ""
+  echo "✅ MR created!"
+  echo "📸 Don't forget: add iOS/Android screenshots + unit test screenshot"
+  echo "👉 Run: glab mr view -w"
+}
+
+# ---------------------------------------------------------------------------
+# gitlab_mr_list — list open MRs assigned to me
+# ---------------------------------------------------------------------------
+gitlab_mr_list() {
+  glab mr list --assignee @me
+}
+
+# ---------------------------------------------------------------------------
+# gitlab_mr_view — open MR in browser
+# ---------------------------------------------------------------------------
+gitlab_mr_view() {
+  local mr_id="${1:?Usage: dx mr view <MR-ID>}"
+  glab mr view "$mr_id" -w
+}

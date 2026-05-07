@@ -1,0 +1,144 @@
+#!/usr/bin/env bash
+# =============================================================================
+# dx — Developer Workflow CLI
+# Unifies Jira, Confluence, GitLab, and GitHub into a single command
+# =============================================================================
+set -euo pipefail
+
+# Resolve symlinks so LIB_DIR points to the real repo regardless of install location
+_SELF="${BASH_SOURCE[0]}"
+while [[ -L "$_SELF" ]]; do
+  _SELF="$(readlink "$_SELF")"
+  [[ "$_SELF" == /* ]] || _SELF="$(dirname "${BASH_SOURCE[0]}")/$_SELF"
+done
+SCRIPT_DIR="$(cd "$(dirname "$_SELF")" && pwd)"
+unset _SELF
+LIB_DIR="$SCRIPT_DIR/../lib"
+
+source "$LIB_DIR/config.sh"
+source "$LIB_DIR/atlassian.sh"
+source "$LIB_DIR/gitlab.sh"
+source "$LIB_DIR/github.sh"
+source "$LIB_DIR/git.sh"
+
+config_load
+
+_dx_help() {
+  cat <<'HELP'
+dx — Developer Workflow CLI
+
+USAGE
+  dx auth login              Create config file and open in editor
+  dx auth whoami             Show active config + test connections
+  dx auth switch <profile>   Switch between profiles
+
+  dx jira read <TICKET|URL>            Human-readable ticket
+  dx jira read <TICKET|URL> --ai       Compact format for AI
+  dx jira read <TICKET|URL> --raw      Raw JSON
+  dx jira list <PROJECT-KEY>           List open tickets
+  dx jira search "<query>"             JQL or text search
+  dx jira open <TICKET|URL>            Open in browser
+
+  dx confluence read <URL|PAGE-ID>         Human-readable page
+  dx confluence read <URL|PAGE-ID> --ai    Compact for AI
+
+  dx mr open <TICKET>                   Create GitLab MR from ticket
+  dx mr open <TICKET> --draft           Create as Draft
+  dx mr open <TICKET> --target <branch> Override target branch
+  dx mr open <TICKET> --changelog "..."  Override changelog
+  dx mr list                             List open MRs assigned to me
+  dx mr view <MR-ID>                     Open MR in browser
+
+  dx pr open <TICKET>                   Create GitHub PR from ticket
+  dx pr open <TICKET> --draft           Create as Draft
+  dx pr open <TICKET> --target <branch> Override target branch
+  dx pr open <TICKET> --changelog "..."  Override changelog
+  dx pr list                             List open PRs assigned to me
+  dx pr view <PR-ID>                     Open PR in browser
+
+EXAMPLES
+  dx jira read DE-1234
+  dx jira read DE-1234 --ai
+  dx confluence read https://yourco.atlassian.net/wiki/spaces/.../pages/12345/...
+  dx mr open DE-1234 --draft
+  dx pr open DE-1234 --target develop
+HELP
+}
+
+CMD="${1:-help}"
+shift || true
+
+case "$CMD" in
+  jira)
+    config_validate_atlassian
+    _atlassian_init
+    SUB="${1:-}"
+    [[ $# -gt 0 ]] && shift || true
+    case "$SUB" in
+      read)   atlassian_read "$@" ;;
+      list)   atlassian_list "$@" ;;
+      search) atlassian_search "$@" ;;
+      open)   atlassian_open "$@" ;;
+      *)      echo "Usage: dx jira read|list|search|open" >&2; exit 1 ;;
+    esac
+    ;;
+
+  confluence)
+    config_validate_atlassian
+    _atlassian_init
+    SUB="${1:-}"
+    [[ $# -gt 0 ]] && shift || true
+    case "$SUB" in
+      read) atlassian_confluence "$@" ;;
+      *)    echo "Usage: dx confluence read <URL|PAGE-ID>" >&2; exit 1 ;;
+    esac
+    ;;
+
+  mr)
+    config_validate_atlassian
+    config_validate_gitlab
+    _atlassian_init
+    SUB="${1:-}"
+    [[ $# -gt 0 ]] && shift || true
+    case "$SUB" in
+      open) gitlab_mr_open "$@" ;;
+      list) gitlab_mr_list ;;
+      view) gitlab_mr_view "$@" ;;
+      *)    echo "Usage: dx mr open|list|view" >&2; exit 1 ;;
+    esac
+    ;;
+
+  pr)
+    config_validate_atlassian
+    config_validate_github
+    _atlassian_init
+    SUB="${1:-}"
+    [[ $# -gt 0 ]] && shift || true
+    case "$SUB" in
+      open) github_pr_open "$@" ;;
+      list) github_pr_list ;;
+      view) github_pr_view "$@" ;;
+      *)    echo "Usage: dx pr open|list|view" >&2; exit 1 ;;
+    esac
+    ;;
+
+  auth)
+    SUB="${1:-}"
+    [[ $# -gt 0 ]] && shift || true
+    case "$SUB" in
+      login)  cmd_auth_login ;;
+      whoami) config_load; cmd_auth_whoami ;;
+      switch) cmd_auth_switch "$@" ;;
+      *)      echo "Usage: dx auth login|whoami|switch" >&2; exit 1 ;;
+    esac
+    ;;
+
+  help|--help|-h)
+    _dx_help
+    ;;
+
+  *)
+    echo "Unknown command: $CMD. Run: dx help" >&2
+    exit 1
+    ;;
+esac

@@ -1,0 +1,4 @@
+env.mcp
+.dx.env
+*.env
+.ctx-saver/
