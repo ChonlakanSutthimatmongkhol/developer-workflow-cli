@@ -205,13 +205,6 @@ cmd_auth_init() {
 EOF
   chmod 600 "$target"
 
-  # Add .dx.env to .gitignore at repo root
-  local gitignore="$git_root/.gitignore"
-  if ! grep -qxF '.dx.env' "$gitignore" 2>/dev/null; then
-    echo '.dx.env' >> "$gitignore"
-    echo "✅ Added .dx.env to .gitignore"
-  fi
-
   echo "✅ Project config created: $target"
   echo "👉 Edit it to override credentials for this project"
 }
