@@ -39,6 +39,13 @@ dx auth login     # create config and fill in credentials
 dx auth whoami    # verify connection
 ```
 
+For Codex or other non-interactive zsh sessions, make sure `~/.local/bin`
+is available from `~/.zshenv`:
+
+```bash
+export PATH="$HOME/.local/bin:/opt/homebrew/bin:$PATH"
+```
+
 ### Update
 
 Same command — idempotent, safe to re-run:
