@@ -93,10 +93,10 @@ Get tokens:
 ### Named profiles
 
 ```bash
-dx auth profile kkpb           # create or edit ~/.config/dx/profiles/kkpb.env
+dx auth profile work           # create or edit ~/.config/dx/profiles/work.env
 dx auth profile list           # list all profiles
-eval "$(dx auth switch kkpb)"  # activate profile in current shell
-DX_PROFILE=kkpb dx jira read DE-1234  # one-off
+eval "$(dx auth switch work)"  # activate profile in current shell
+DX_PROFILE=work dx jira read DE-1234  # one-off
 ```
 
 ---
