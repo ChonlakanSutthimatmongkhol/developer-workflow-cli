@@ -34,7 +34,7 @@ _render_mr_template() {
 
 # ---------------------------------------------------------------------------
 # gitlab_mr_open — create MR from a Jira ticket
-# Usage: gitlab_mr_open <TICKET> [--draft] [--target <branch>] [--changelog "..."]
+# Usage: gitlab_mr_open <TICKET> [--draft] [--target <branch>] [--changelog "..."] [--yes]
 # ---------------------------------------------------------------------------
 gitlab_mr_open() {
   local ticket="${1:?Usage: dx mr open <TICKET>}"
@@ -44,6 +44,7 @@ gitlab_mr_open() {
   local target_branch="main"
   local changelog_override=""
   local commit_type="feat"
+  local yes=false
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -51,9 +52,13 @@ gitlab_mr_open() {
       --target)    target_branch="${2:?--target requires a branch name}"; shift ;;
       --changelog) changelog_override="${2:?--changelog requires a value}"; shift ;;
       --type)      commit_type="${2:?--type requires a value (feat|fix|chore|...)}"; shift ;;
+      --yes|-y)    yes=true ;;
+      *)           echo "Unknown option: $1" >&2; exit 1 ;;
     esac
     shift
   done
+
+  git_confirm_create "MR" "$ticket" "$target_branch" "$yes" || return 1
 
   # Fetch Jira ticket info
   local jira_output
@@ -73,7 +78,7 @@ gitlab_mr_open() {
   description=$(_render_mr_template "$jira_url" "$changelog")
 
   # Build glab command
-  local glab_args=(mr create --title "$mr_title" --description "$description" --assignee @me --target-branch "$target_branch" --yes)
+  local glab_args=(glab mr create --title "$mr_title" --description "$description" --assignee @me --target-branch "$target_branch" --yes)
   $draft && glab_args+=(--draft)
 
   GITLAB_TOKEN="$GITLAB_TOKEN" "${glab_args[@]}"

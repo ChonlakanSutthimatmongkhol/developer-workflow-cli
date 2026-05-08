@@ -149,14 +149,16 @@ dx mr open <TICKET>                       # create MR from Jira ticket
 dx mr open <TICKET> --draft              # create as Draft
 dx mr open <TICKET> --target <branch>    # override target branch (default: main)
 dx mr open <TICKET> --changelog "..."    # override changelog
+dx mr open <TICKET> --yes                # skip repo/profile confirmation prompt
 dx mr list                               # list open MRs assigned to me
 dx mr view <MR-ID>                       # open MR in browser
 ```
 
 `dx mr open` automatically:
-1. Fetches the Jira ticket title + URL
-2. Generates changelog from `git log origin/main..HEAD`
-3. Fills in the MR description template (Jira link + changelog + screenshot table)
+1. Shows repo, branch, profile, ticket, and target branch for confirmation
+2. Fetches the Jira ticket title + URL
+3. Generates changelog from `git log origin/main..HEAD`
+4. Fills in the MR description template (Jira link + changelog + screenshot table)
 
 ### PR (GitHub)
 
@@ -165,6 +167,7 @@ dx pr open <TICKET>                       # create PR from Jira ticket
 dx pr open <TICKET> --draft              # create as Draft
 dx pr open <TICKET> --target <branch>    # override target branch (default: main)
 dx pr open <TICKET> --changelog "..."    # override changelog
+dx pr open <TICKET> --yes                # skip repo/profile confirmation prompt
 dx pr list                               # list open PRs assigned to me
 dx pr view <PR-ID>                       # open PR in browser
 ```

@@ -7,7 +7,7 @@ _DX_SCRIPT_DIR_GITHUB="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # ---------------------------------------------------------------------------
 # github_pr_open — create PR from a Jira ticket
-# Usage: github_pr_open <TICKET> [--draft] [--target <branch>] [--changelog "..."]
+# Usage: github_pr_open <TICKET> [--draft] [--target <branch>] [--changelog "..."] [--yes]
 # ---------------------------------------------------------------------------
 github_pr_open() {
   local ticket="${1:?Usage: dx pr open <TICKET>}"
@@ -17,6 +17,7 @@ github_pr_open() {
   local target_branch="main"
   local changelog_override=""
   local commit_type="feat"
+  local yes=false
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -24,9 +25,13 @@ github_pr_open() {
       --target)    target_branch="${2:?--target requires a branch name}"; shift ;;
       --changelog) changelog_override="${2:?--changelog requires a value}"; shift ;;
       --type)      commit_type="${2:?--type requires a value (feat|fix|chore|...)}"; shift ;;
+      --yes|-y)    yes=true ;;
+      *)           echo "Unknown option: $1" >&2; exit 1 ;;
     esac
     shift
   done
+
+  git_confirm_create "PR" "$ticket" "$target_branch" "$yes" || return 1
 
   # Fetch Jira ticket info
   local jira_output
@@ -48,7 +53,7 @@ github_pr_open() {
                     "$_DX_SCRIPT_DIR_GITHUB/templates/mr_description_mobile.md")
 
   # Build gh command
-  local gh_args=(pr create --title "$pr_title" --body "$description" --assignee @me --base "$target_branch")
+  local gh_args=(gh pr create --title "$pr_title" --body "$description" --assignee @me --base "$target_branch")
   $draft && gh_args+=(--draft)
 
   GH_TOKEN="$GITHUB_TOKEN" "${gh_args[@]}"

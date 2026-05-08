@@ -68,6 +68,7 @@ USAGE
   dx mr open <TICKET> --type <type>     Commit type: feat|fix|chore|... (default: feat)
   dx mr open <TICKET> --target <branch> Override target branch
   dx mr open <TICKET> --changelog "..."  Override changelog
+  dx mr open <TICKET> --yes             Skip repo/profile confirmation prompt
   dx mr list                             List open MRs assigned to me
   dx mr view <MR-ID>                     Open MR in browser
 
@@ -76,6 +77,7 @@ USAGE
   dx pr open <TICKET> --type <type>     Commit type: feat|fix|chore|... (default: feat)
   dx pr open <TICKET> --target <branch> Override target branch
   dx pr open <TICKET> --changelog "..."  Override changelog
+  dx pr open <TICKET> --yes             Skip repo/profile confirmation prompt
   dx pr list                             List open PRs assigned to me
   dx pr view <PR-ID>                     Open PR in browser
 
