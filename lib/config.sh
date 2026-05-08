@@ -59,11 +59,15 @@ config_load() {
 
   # 1. Named profile (overrides global)
   local profile_name="$explicit_profile"
+  local profile_source=""
+  [[ -n "$profile_name" ]] && profile_source="env"
   if [[ -z "$profile_name" ]]; then
     profile_name="$(_read_default_profile)"
+    [[ -n "$profile_name" ]] && profile_source="default"
   fi
   if [[ -z "$profile_name" ]]; then
     profile_name="${DX_PROFILE:-}"
+    [[ -n "$profile_name" ]] && profile_source="legacy"
   fi
 
   if [[ -n "$profile_name" ]]; then
@@ -72,6 +76,7 @@ config_load() {
       exit 1
     fi
     export DX_PROFILE="$profile_name"
+    export _DX_PROFILE_SOURCE="$profile_source"
 
     local profile_file="$HOME/.config/dx/profiles/${profile_name}.env"
     if [[ ! -f "$profile_file" ]]; then
@@ -239,9 +244,16 @@ cmd_auth_whoami() {
 # cmd_auth_profile — create or edit a named profile
 # Usage: dx auth profile <name>
 #        dx auth profile list
+#        dx auth profile delete <name>
 # ---------------------------------------------------------------------------
 cmd_auth_profile() {
   local name="${1:-}"
+
+  if [[ "$name" == "delete" || "$name" == "rm" ]]; then
+    shift || true
+    cmd_auth_profile_delete "$@"
+    return $?
+  fi
 
   if [[ "$name" == "list" || -z "$name" ]]; then
     local profiles_dir="$HOME/.config/dx/profiles"
@@ -305,6 +317,33 @@ EOF
   _open_editor "$target"
   echo "✅ Profile saved: $name"
   echo "👉 Use it with: dx auth switch $name"
+}
+
+cmd_auth_profile_delete() {
+  local name="${1:-}"
+  [[ -n "$name" ]] || { echo "Usage: dx auth profile delete <profile>" >&2; exit 1; }
+  _validate_profile_name "$name" || exit 1
+
+  local profile_file="$HOME/.config/dx/profiles/${name}.env"
+  if [[ ! -f "$profile_file" ]]; then
+    echo "❌ Profile not found: $profile_file" >&2
+    exit 1
+  fi
+
+  rm -f "$profile_file"
+  echo "✅ Deleted profile: $name"
+
+  local default_file saved_profile
+  default_file="$(_default_profile_file)"
+  saved_profile="$(_read_default_profile)"
+  if [[ "$saved_profile" == "$name" ]]; then
+    rm -f "$default_file"
+    echo "✅ Default profile cleared."
+  fi
+
+  if [[ "${DX_PROFILE:-}" == "$name" && "${_DX_PROFILE_SOURCE:-}" == "env" ]]; then
+    echo "👉 Current shell still has DX_PROFILE=$name. Run: unset DX_PROFILE"
+  fi
 }
 
 cmd_auth_default() {

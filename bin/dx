@@ -30,6 +30,8 @@ if [[ "$CMD" == "auth" ]]; then
       DX_ALLOW_MISSING_PROFILE=1
       ;;
   esac
+elif [[ "$CMD" == "profile" ]]; then
+  DX_ALLOW_MISSING_PROFILE=1
 fi
 
 config_load
@@ -43,10 +45,13 @@ USAGE
   dx auth login                Create/edit global config (~/.config/dx/default.env)
   dx auth profile <name>       Create or edit a named profile
   dx auth profile list         List all profiles
+  dx auth profile delete <name> Delete a named profile
   dx auth default <name>       Save a default profile for future dx commands
   dx auth switch <name>        Print export command to activate a profile
   dx auth switch <name> --save Activate and save as default profile
   dx auth whoami               Show active config + test connections
+
+  dx profile delete <name>     Shortcut for dx auth profile delete <name>
 
   dx jira read <TICKET|URL>            Human-readable ticket
   dx jira read <TICKET|URL> --ai       Compact format for AI
@@ -148,6 +153,10 @@ case "$CMD" in
       whoami)  cmd_auth_whoami ;;
       *)       echo "Usage: dx auth login|profile|default|switch|whoami" >&2; exit 1 ;;
     esac
+    ;;
+
+  profile)
+    cmd_auth_profile "$@"
     ;;
 
   help|--help|-h)

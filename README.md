@@ -96,6 +96,8 @@ Get tokens:
 ```bash
 dx auth profile work           # create or edit ~/.config/dx/profiles/work.env
 dx auth profile list           # list all profiles
+dx auth profile delete work    # delete ~/.config/dx/profiles/work.env
+dx profile delete work         # shortcut
 dx auth default work           # save work as the default profile
 eval "$(dx auth switch work)"  # activate profile in current shell
 eval "$(dx auth switch work --save)"  # activate and save as default
@@ -112,6 +114,8 @@ DX_PROFILE=work dx jira read DE-1234  # one-off
 dx auth login                    # create/edit global config
 dx auth profile <name>           # create or edit a named profile
 dx auth profile list             # list all profiles
+dx auth profile delete <name>    # delete a named profile
+dx profile delete <name>         # shortcut
 dx auth default <name>           # save a default profile
 eval "$(dx auth switch <name>)"  # activate profile in current shell
 eval "$(dx auth switch <name> --save)"  # activate and save as default
