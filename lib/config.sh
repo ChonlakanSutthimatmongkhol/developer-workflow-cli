@@ -15,15 +15,41 @@ _load_env_file() {
   done < "$f"
 }
 
+_default_profile_file() {
+  printf '%s/.config/dx/default-profile\n' "$HOME"
+}
+
+_read_default_profile() {
+  local f
+  f="$(_default_profile_file)"
+  [[ -f "$f" ]] || return 0
+
+  local name
+  IFS= read -r name < "$f" || true
+  printf '%s\n' "$name"
+}
+
+_validate_profile_name() {
+  local name="$1"
+  if [[ -z "$name" || ! "$name" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    echo "❌ Invalid profile name: $name" >&2
+    echo "👉 Use letters, numbers, dots, underscores, or hyphens only." >&2
+    return 1
+  fi
+}
+
 # ---------------------------------------------------------------------------
-# config_load — priority order (highest wins, load lowest first):
-#   1. DX_PROFILE → ~/.config/dx/profiles/<name>.env
-#   2. ~/.config/dx/default.env  — global default
-#   3. env.mcp next to binary    — legacy fallback
+# config_load — value priority order (highest wins, load lowest first):
+#   1. Active profile → ~/.config/dx/profiles/<name>.env
+#      Profile selection: DX_PROFILE env var, then ~/.config/dx/default-profile
+#      Legacy fallback: DX_PROFILE loaded from env.mcp/default.env
+#   2. ~/.config/dx/default.env — global default
+#   3. env.mcp next to binary   — legacy fallback
 # ---------------------------------------------------------------------------
 config_load() {
   local script_dir
   script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+  local explicit_profile="${DX_PROFILE:-}"
 
   # 3. Legacy fallback
   _load_env_file "$script_dir/env.mcp"
@@ -32,9 +58,27 @@ config_load() {
   _load_env_file "$HOME/.config/dx/default.env"
 
   # 1. Named profile (overrides global)
-  if [[ -n "${DX_PROFILE:-}" ]]; then
-    local profile_file="$HOME/.config/dx/profiles/${DX_PROFILE}.env"
+  local profile_name="$explicit_profile"
+  if [[ -z "$profile_name" ]]; then
+    profile_name="$(_read_default_profile)"
+  fi
+  if [[ -z "$profile_name" ]]; then
+    profile_name="${DX_PROFILE:-}"
+  fi
+
+  if [[ -n "$profile_name" ]]; then
+    if ! _validate_profile_name "$profile_name"; then
+      [[ "${DX_ALLOW_MISSING_PROFILE:-}" == "1" ]] && return 0
+      exit 1
+    fi
+    export DX_PROFILE="$profile_name"
+
+    local profile_file="$HOME/.config/dx/profiles/${profile_name}.env"
     if [[ ! -f "$profile_file" ]]; then
+      if [[ "${DX_ALLOW_MISSING_PROFILE:-}" == "1" ]]; then
+        unset DX_PROFILE
+        return 0
+      fi
       echo "❌ Profile not found: $profile_file" >&2
       exit 1
     fi
@@ -161,6 +205,9 @@ EOF
 cmd_auth_whoami() {
   echo "=== Active Config ==="
   echo "Global  : $HOME/.config/dx/default.env"
+  local saved_profile
+  saved_profile="$(_read_default_profile)"
+  [[ -n "$saved_profile" ]] && echo "Default : $saved_profile ($(_default_profile_file))"
   [[ -n "${DX_PROFILE:-}" ]] && echo "Profile : $HOME/.config/dx/profiles/${DX_PROFILE}.env (active)"
   echo ""
 
@@ -198,16 +245,21 @@ cmd_auth_profile() {
 
   if [[ "$name" == "list" || -z "$name" ]]; then
     local profiles_dir="$HOME/.config/dx/profiles"
+    local saved_profile
+    saved_profile="$(_read_default_profile)"
     echo "Available profiles (in $profiles_dir/):"
     if [[ -d "$profiles_dir" ]]; then
       local found=false
       for f in "$profiles_dir"/*.env; do
         [[ -f "$f" ]] || continue
         local pname="${f##*/}"; pname="${pname%.env}"
+        local suffix=""
+        [[ "${DX_PROFILE:-}" == "$pname" ]] && suffix+=" (active)"
+        [[ "$saved_profile" == "$pname" ]] && suffix+=" (default)"
         if [[ "${DX_PROFILE:-}" == "$pname" ]]; then
-          echo "  * $pname  (active)"
+          echo "  * $pname$suffix"
         else
-          echo "    $pname"
+          echo "    $pname$suffix"
         fi
         found=true
       done
@@ -217,6 +269,8 @@ cmd_auth_profile() {
     fi
     return 0
   fi
+
+  _validate_profile_name "$name" || exit 1
 
   local profiles_dir="$HOME/.config/dx/profiles"
   mkdir -p "$profiles_dir"
@@ -253,17 +307,75 @@ EOF
   echo "👉 Use it with: dx auth switch $name"
 }
 
+cmd_auth_default() {
+  local name="${1:-}"
+  local default_file
+  default_file="$(_default_profile_file)"
+
+  if [[ -z "$name" ]]; then
+    local saved_profile
+    saved_profile="$(_read_default_profile)"
+    if [[ -n "$saved_profile" ]]; then
+      echo "Default profile: $saved_profile"
+    else
+      echo "No default profile set."
+      echo "👉 Set one with: dx auth default <profile>"
+    fi
+    return 0
+  fi
+
+  if [[ "$name" == "clear" ]]; then
+    rm -f "$default_file"
+    echo "✅ Default profile cleared."
+    return 0
+  fi
+
+  _validate_profile_name "$name" || exit 1
+
+  local profile_file="$HOME/.config/dx/profiles/${name}.env"
+  if [[ ! -f "$profile_file" ]]; then
+    echo "❌ Profile not found: $profile_file" >&2
+    echo "👉 Create it with: dx auth profile $name" >&2
+    exit 1
+  fi
+
+  mkdir -p "$(dirname "$default_file")"
+  chmod 700 "$(dirname "$default_file")"
+  printf '%s\n' "$name" > "$default_file"
+  chmod 600 "$default_file"
+
+  echo "✅ Default profile saved: $name"
+  echo "👉 Future dx commands will use it unless DX_PROFILE is set."
+}
+
 # ---------------------------------------------------------------------------
 # cmd_auth_switch — set active profile for the current shell session
 # ---------------------------------------------------------------------------
 cmd_auth_switch() {
-  local name="${1:?Usage: dx auth switch <profile>}"
+  local name="${1:-}"
+  [[ -n "$name" ]] || { echo "Usage: dx auth switch <profile> [--save]" >&2; exit 1; }
+  shift || true
+
+  local save=false
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --save) save=true ;;
+      *) echo "Unknown option: $1" >&2; echo "Usage: dx auth switch <profile> [--save]" >&2; exit 1 ;;
+    esac
+    shift
+  done
+
+  _validate_profile_name "$name" || exit 1
   local profile_file="$HOME/.config/dx/profiles/${name}.env"
 
   if [[ ! -f "$profile_file" ]]; then
     echo "❌ Profile not found: $profile_file" >&2
     echo "👉 Create it with: dx auth profile $name" >&2
     exit 1
+  fi
+
+  if $save; then
+    cmd_auth_default "$name" >&2
   fi
 
   echo "export DX_PROFILE=${name}"

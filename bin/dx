@@ -21,7 +21,19 @@ source "$LIB_DIR/gitlab.sh"
 source "$LIB_DIR/github.sh"
 source "$LIB_DIR/git.sh"
 
+CMD="${1:-help}"
+shift || true
+
+if [[ "$CMD" == "auth" ]]; then
+  case "${1:-}" in
+    login|profile|default|switch)
+      DX_ALLOW_MISSING_PROFILE=1
+      ;;
+  esac
+fi
+
 config_load
+unset DX_ALLOW_MISSING_PROFILE
 
 _dx_help() {
   cat <<'HELP'
@@ -31,7 +43,9 @@ USAGE
   dx auth login                Create/edit global config (~/.config/dx/default.env)
   dx auth profile <name>       Create or edit a named profile
   dx auth profile list         List all profiles
+  dx auth default <name>       Save a default profile for future dx commands
   dx auth switch <name>        Print export command to activate a profile
+  dx auth switch <name> --save Activate and save as default profile
   dx auth whoami               Show active config + test connections
 
   dx jira read <TICKET|URL>            Human-readable ticket
@@ -68,9 +82,6 @@ EXAMPLES
   dx pr open DE-1234 --target develop
 HELP
 }
-
-CMD="${1:-help}"
-shift || true
 
 case "$CMD" in
   jira)
@@ -132,9 +143,10 @@ case "$CMD" in
     case "$SUB" in
       login)   cmd_auth_login ;;
       profile) cmd_auth_profile "$@" ;;
+      default) cmd_auth_default "$@" ;;
       switch)  cmd_auth_switch "$@" ;;
       whoami)  cmd_auth_whoami ;;
-      *)       echo "Usage: dx auth login|profile|switch|whoami" >&2; exit 1 ;;
+      *)       echo "Usage: dx auth login|profile|default|switch|whoami" >&2; exit 1 ;;
     esac
     ;;
 

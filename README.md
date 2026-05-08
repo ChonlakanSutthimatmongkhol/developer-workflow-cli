@@ -86,16 +86,19 @@ Get tokens:
 
 ### Priority order (highest → lowest)
 
-1. `DX_PROFILE` → `~/.config/dx/profiles/<name>.env` — named profile
-2. `~/.config/dx/default.env` — global default
-3. `env.mcp` next to the script — legacy fallback
+1. `DX_PROFILE` → `~/.config/dx/profiles/<name>.env` — one-off named profile
+2. `~/.config/dx/default-profile` → `~/.config/dx/profiles/<name>.env` — saved default profile
+3. `~/.config/dx/default.env` — global default credentials
+4. `env.mcp` next to the script — legacy fallback
 
 ### Named profiles
 
 ```bash
 dx auth profile work           # create or edit ~/.config/dx/profiles/work.env
 dx auth profile list           # list all profiles
+dx auth default work           # save work as the default profile
 eval "$(dx auth switch work)"  # activate profile in current shell
+eval "$(dx auth switch work --save)"  # activate and save as default
 DX_PROFILE=work dx jira read DE-1234  # one-off
 ```
 
@@ -109,7 +112,9 @@ DX_PROFILE=work dx jira read DE-1234  # one-off
 dx auth login                    # create/edit global config
 dx auth profile <name>           # create or edit a named profile
 dx auth profile list             # list all profiles
+dx auth default <name>           # save a default profile
 eval "$(dx auth switch <name>)"  # activate profile in current shell
+eval "$(dx auth switch <name> --save)"  # activate and save as default
 dx auth whoami                   # show active config + test connections
 ```
 
