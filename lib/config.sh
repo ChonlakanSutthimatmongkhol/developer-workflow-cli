@@ -92,6 +92,18 @@ _open_editor() {
   $editor "$file"
 }
 
+_write_profile_env_var() {
+  local key="$1"
+  local fallback="$2"
+  local value="${!key:-}"
+
+  if [[ -n "$value" ]]; then
+    printf '%s=%s\n' "$key" "$value"
+  else
+    printf '# %s=%s\n' "$key" "$fallback"
+  fi
+}
+
 # ---------------------------------------------------------------------------
 # cmd_auth_login — create global config + open in editor
 # ---------------------------------------------------------------------------
@@ -212,24 +224,26 @@ cmd_auth_profile() {
   local target="$profiles_dir/${name}.env"
 
   if [[ ! -f "$target" ]]; then
-    cat > "$target" <<EOF
+    {
+      cat <<EOF
 # ~/.config/dx/profiles/${name}.env — profile: ${name}
 # Overrides ~/.config/dx/default.env when DX_PROFILE=${name}
 
-# JIRA_URL=https://yourco.atlassian.net
-# JIRA_USERNAME=you@yourco.com
-# JIRA_API_TOKEN=your-token-here
-
-# CONFLUENCE_URL=https://yourco.atlassian.net/wiki
-# CONFLUENCE_USERNAME=you@yourco.com
-# CONFLUENCE_API_TOKEN=your-token-here
-
-# GITLAB_HOST=gitlab.yourco.com
-# GITLAB_TOKEN=your-token-here
-
-# GITHUB_HOST=github.com
-# GITHUB_TOKEN=your-token-here
 EOF
+      _write_profile_env_var JIRA_URL "https://yourco.atlassian.net"
+      _write_profile_env_var JIRA_USERNAME "you@yourco.com"
+      _write_profile_env_var JIRA_API_TOKEN "your-token-here"
+      echo
+      _write_profile_env_var CONFLUENCE_URL "https://yourco.atlassian.net/wiki"
+      _write_profile_env_var CONFLUENCE_USERNAME "you@yourco.com"
+      _write_profile_env_var CONFLUENCE_API_TOKEN "your-token-here"
+      echo
+      _write_profile_env_var GITLAB_HOST "gitlab.yourco.com"
+      _write_profile_env_var GITLAB_TOKEN "your-token-here"
+      echo
+      _write_profile_env_var GITHUB_HOST "github.com"
+      _write_profile_env_var GITHUB_TOKEN "your-token-here"
+    } > "$target"
     chmod 600 "$target"
     echo "✅ Created profile: $name"
   fi
