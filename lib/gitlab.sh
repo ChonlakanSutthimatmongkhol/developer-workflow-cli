@@ -34,7 +34,7 @@ _render_mr_template() {
 
 # ---------------------------------------------------------------------------
 # gitlab_mr_open — create MR from a Jira ticket
-# Usage: gitlab_mr_open <TICKET> [--draft] [--target <branch>] [--changelog "..."] [--yes]
+# Usage: gitlab_mr_open <TICKET> [--draft] [--target <branch>] [--changelog "..."] [--body-file <path>] [--yes]
 # ---------------------------------------------------------------------------
 gitlab_mr_open() {
   local ticket="${1:?Usage: dx mr open <TICKET>}"
@@ -44,6 +44,7 @@ gitlab_mr_open() {
   local target_branch="main"
   local changelog_override=""
   local commit_type="feat"
+  local body_file=""
   local yes=false
 
   while [[ $# -gt 0 ]]; do
@@ -52,6 +53,7 @@ gitlab_mr_open() {
       --target)    target_branch="${2:?--target requires a branch name}"; shift ;;
       --changelog) changelog_override="${2:?--changelog requires a value}"; shift ;;
       --type)      commit_type="${2:?--type requires a value (feat|fix|chore|...)}"; shift ;;
+      --body-file) body_file="${2:?--body-file requires a path}"; shift ;;
       --yes|-y)    yes=true ;;
       *)           echo "Unknown option: $1" >&2; exit 1 ;;
     esac
@@ -75,7 +77,12 @@ gitlab_mr_open() {
     changelog=$(git_changelog "origin/${target_branch}" 2>/dev/null || echo "- (no commits ahead of ${target_branch})")
   fi
 
-  description=$(_render_mr_template "$jira_url" "$changelog")
+  if [[ -n "$body_file" ]]; then
+    [[ -f "$body_file" ]] || { echo "Body file not found: $body_file" >&2; return 1; }
+    description="$(<"$body_file")"
+  else
+    description=$(_render_mr_template "$jira_url" "$changelog")
+  fi
 
   # Build glab command
   local glab_args=(glab mr create --title "$mr_title" --description "$description" --assignee @me --target-branch "$target_branch" --yes)

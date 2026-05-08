@@ -7,7 +7,7 @@ _DX_SCRIPT_DIR_GITHUB="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # ---------------------------------------------------------------------------
 # github_pr_open — create PR from a Jira ticket
-# Usage: github_pr_open <TICKET> [--draft] [--target <branch>] [--changelog "..."] [--yes]
+# Usage: github_pr_open <TICKET> [--draft] [--target <branch>] [--changelog "..."] [--body-file <path>] [--yes]
 # ---------------------------------------------------------------------------
 github_pr_open() {
   local ticket="${1:?Usage: dx pr open <TICKET>}"
@@ -17,6 +17,7 @@ github_pr_open() {
   local target_branch="main"
   local changelog_override=""
   local commit_type="feat"
+  local body_file=""
   local yes=false
 
   while [[ $# -gt 0 ]]; do
@@ -25,6 +26,7 @@ github_pr_open() {
       --target)    target_branch="${2:?--target requires a branch name}"; shift ;;
       --changelog) changelog_override="${2:?--changelog requires a value}"; shift ;;
       --type)      commit_type="${2:?--type requires a value (feat|fix|chore|...)}"; shift ;;
+      --body-file) body_file="${2:?--body-file requires a path}"; shift ;;
       --yes|-y)    yes=true ;;
       *)           echo "Unknown option: $1" >&2; exit 1 ;;
     esac
@@ -48,9 +50,14 @@ github_pr_open() {
     changelog=$(git_changelog "origin/${target_branch}" 2>/dev/null || echo "- (no commits ahead of ${target_branch})")
   fi
 
-  description=$(sed -e "s|{{JIRA_URL}}|${jira_url}|g" \
-                    -e "s|{{CHANGELOG}}|${changelog}|g" \
-                    "$_DX_SCRIPT_DIR_GITHUB/templates/mr_description_mobile.md")
+  if [[ -n "$body_file" ]]; then
+    [[ -f "$body_file" ]] || { echo "Body file not found: $body_file" >&2; return 1; }
+    description="$(<"$body_file")"
+  else
+    description=$(sed -e "s|{{JIRA_URL}}|${jira_url}|g" \
+                      -e "s|{{CHANGELOG}}|${changelog}|g" \
+                      "$_DX_SCRIPT_DIR_GITHUB/templates/mr_description_mobile.md")
+  fi
 
   # Build gh command
   local gh_args=(gh pr create --title "$pr_title" --body "$description" --assignee @me --base "$target_branch")

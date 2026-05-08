@@ -156,6 +156,7 @@ dx mr open <TICKET>                       # create MR from Jira ticket
 dx mr open <TICKET> --draft              # create as Draft
 dx mr open <TICKET> --target <branch>    # override target branch (default: main)
 dx mr open <TICKET> --changelog "..."    # override changelog
+dx mr open <TICKET> --body-file <path>   # use an AI-generated MR body markdown file
 dx mr open <TICKET> --yes                # skip repo/profile confirmation prompt
 dx mr list                               # list open MRs assigned to me
 dx mr view <MR-ID>                       # open MR in browser
@@ -174,10 +175,23 @@ dx pr open <TICKET>                       # create PR from Jira ticket
 dx pr open <TICKET> --draft              # create as Draft
 dx pr open <TICKET> --target <branch>    # override target branch (default: main)
 dx pr open <TICKET> --changelog "..."    # override changelog
+dx pr open <TICKET> --body-file <path>   # use an AI-generated PR body markdown file
 dx pr open <TICKET> --yes                # skip repo/profile confirmation prompt
 dx pr list                               # list open PRs assigned to me
 dx pr view <PR-ID>                       # open PR in browser
 ```
+
+`dx pr open` automatically:
+1. Shows repo, branch, profile, ticket, and target branch for confirmation
+2. Fetches the Jira ticket title + URL
+3. Generates changelog from `git log origin/main..HEAD`
+4. Fills in the PR description template (Jira link + changelog + screenshot table)
+
+For smarter Jira-aware PR bodies, use the AI workflow command/prompt:
+- Claude/Codex command: `ai-workflow/commands/pr-from-jira.md`
+- Copilot/Codex prompt: `ai-workflow/prompts/pr-from-jira.prompt.md`
+
+That workflow reads Jira, current commits, and test output, writes a PR/MR body markdown file, then calls `dx pr open ... --body-file <file>` or `dx mr open ... --body-file <file>`.
 
 ---
 
