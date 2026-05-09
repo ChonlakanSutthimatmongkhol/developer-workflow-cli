@@ -36,7 +36,7 @@ git_branch_create() {
   local ticket="${1:?Usage: dx branch <TICKET>}"
   shift
 
-  local commit_type="feat"
+  local commit_type="feature"
   local yes=false
 
   while [[ $# -gt 0 ]]; do

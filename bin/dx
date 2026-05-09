@@ -66,7 +66,7 @@ USAGE
   dx confluence read <URL|PAGE-ID> --ai    Compact for AI
 
   dx branch <TICKET>                   Create git branch from Jira ticket
-  dx branch <TICKET> --type <type>     Branch prefix: feat|fix|chore|... (default: feat)
+  dx branch <TICKET> --type <type>     Branch prefix: feature|fix|chore|... (default: feature)
   dx branch <TICKET> --yes             Skip confirmation prompt
 
   dx mr open <TICKET>                   Create GitLab MR from ticket
