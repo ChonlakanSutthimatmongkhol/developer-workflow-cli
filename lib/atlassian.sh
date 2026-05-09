@@ -425,6 +425,58 @@ print(out.strip())
 PYEOF
 }
 
+atlassian_jira_status() {
+  local input="${1:?Usage: dx jira status <TICKET> [NEW-STATUS]}"
+  local ticket
+  ticket=$(_parse_ticket "$input")
+  shift
+  local new_status="${1:-}"
+
+  local transitions_json
+  transitions_json=$(_jira_get "/issue/${ticket}/transitions")
+
+  if [[ -z "$new_status" ]]; then
+    python3 - "$transitions_json" "$ticket" <<'PYEOF'
+import sys, json
+data = json.loads(sys.argv[1])
+ticket = sys.argv[2]
+current = data.get("currentStatus", {})
+print(f"Available transitions for {ticket}:")
+for t in sorted(data.get("transitions", []), key=lambda x: x["to"]["name"]):
+    print(f"  {t['to']['name']}")
+PYEOF
+    return 0
+  fi
+
+  local transition_id
+  transition_id=$(python3 - "$transitions_json" "$new_status" <<'PYEOF'
+import sys, json
+data = json.loads(sys.argv[1])
+target = sys.argv[2].lower()
+for t in data.get("transitions", []):
+    if t["to"]["name"].lower() == target or t["name"].lower() == target:
+        print(t["id"])
+        sys.exit(0)
+sys.exit(1)
+PYEOF
+  ) || true
+
+  if [[ -z "$transition_id" ]]; then
+    echo "❌ No transition found matching: $new_status" >&2
+    echo "👉 Run: dx jira status $ticket  (to list available statuses)" >&2
+    return 1
+  fi
+
+  curl -s -f \
+    -H "$AUTH_HEADER" \
+    -H "Content-Type: application/json" \
+    -X POST \
+    -d "{\"transition\":{\"id\":\"${transition_id}\"}}" \
+    "${JIRA_API_BASE}/issue/${ticket}/transitions" > /dev/null
+
+  echo "✅ ${ticket} → ${new_status}"
+}
+
 atlassian_whoami() {
   echo "JIRA_URL : ${JIRA_URL}"
   echo "USER     : ${JIRA_USER}"

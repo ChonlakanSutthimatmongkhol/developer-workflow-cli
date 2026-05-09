@@ -59,9 +59,15 @@ USAGE
   dx jira list <PROJECT-KEY>           List open tickets
   dx jira search "<query>"             JQL or text search
   dx jira open <TICKET|URL>            Open in browser
+  dx jira status <TICKET>              List available transitions
+  dx jira status <TICKET> <STATUS>     Move ticket to new status
 
   dx confluence read <URL|PAGE-ID>         Human-readable page
   dx confluence read <URL|PAGE-ID> --ai    Compact for AI
+
+  dx branch <TICKET>                   Create git branch from Jira ticket
+  dx branch <TICKET> --type <type>     Branch prefix: feat|fix|chore|... (default: feat)
+  dx branch <TICKET> --yes             Skip confirmation prompt
 
   dx mr open <TICKET>                   Create GitLab MR from ticket
   dx mr open <TICKET> --draft           Create as Draft
@@ -103,7 +109,8 @@ case "$CMD" in
       list)   atlassian_list "$@" ;;
       search) atlassian_search "$@" ;;
       open)   atlassian_open "$@" ;;
-      *)      echo "Usage: dx jira read|list|search|open" >&2; exit 1 ;;
+      status) atlassian_jira_status "$@" ;;
+      *)      echo "Usage: dx jira read|list|search|open|status" >&2; exit 1 ;;
     esac
     ;;
 
@@ -144,6 +151,12 @@ case "$CMD" in
       view) github_pr_view "$@" ;;
       *)    echo "Usage: dx pr open|list|view" >&2; exit 1 ;;
     esac
+    ;;
+
+  branch)
+    config_validate_atlassian
+    _atlassian_init
+    git_branch_create "$@"
     ;;
 
   auth)
