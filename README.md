@@ -138,9 +138,24 @@ dx jira read <TICKET|URL> --raw      # raw JSON
 dx jira list <PROJECT-KEY>           # list open tickets
 dx jira search "<query>"             # JQL or text search
 dx jira open <TICKET|URL>            # open in browser
+dx jira status <TICKET>              # list available transitions
+dx jira status <TICKET> <STATUS>     # move ticket to new status
 ```
 
 Ticket can be an ID (`DE-1234`) or a full Jira URL.
+
+### Branch
+
+```bash
+dx branch <TICKET>                   # create git branch from Jira ticket
+dx branch <TICKET> --type <type>     # branch prefix: feature|fix|chore|... (default: feature)
+dx branch <TICKET> --yes             # skip confirmation prompt
+```
+
+`dx branch` automatically:
+1. Fetches the Jira ticket title
+2. Slugifies it into a branch name: `feature/de-1234-fix-login-bug`
+3. Creates and checks out the branch
 
 ### Confluence
 
@@ -228,9 +243,12 @@ dx/
 │   ├── atlassian.sh           ← Jira + Confluence API (ADF/HTML → Markdown)
 │   ├── gitlab.sh              ← glab wrapper, dx mr commands
 │   ├── github.sh              ← gh wrapper, dx pr commands
-│   └── git.sh                 ← changelog from git log
+│   └── git.sh                 ← branch creation, changelog from git log
 ├── templates/
 │   └── mr_description_mobile.md      ← MR/PR description template
+├── .claude/
+│   └── commands/
+│       └── dx.md              ← /dx slash command for Claude Code
 ├── install.sh                 ← one-time symlink setup
 └── README.md
 ```
@@ -239,11 +257,13 @@ dx/
 
 ## Using with Claude Code (AI workflow)
 
-The `/dx` slash command is available for Claude Code users — it instructs the AI to use `dx` commands efficiently via ctx-saver to avoid context overflow.
+The `/dx` slash command (`.claude/commands/dx.md`) is available for Claude Code users — it instructs AI to use `dx` commands efficiently to avoid context overflow.
 
 Example prompts:
 ```
 /dx read ticket DE-1234 and summarize the requirements
 /dx search "login bug" and list results
 /dx read confluence https://...
+/dx create branch for DE-1234
+/dx move DE-1234 to In Progress
 ```
