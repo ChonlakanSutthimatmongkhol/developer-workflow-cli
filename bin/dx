@@ -22,6 +22,8 @@ source "$LIB_DIR/github.sh"
 source "$LIB_DIR/git.sh"
 source "$LIB_DIR/ai_output.sh"
 source "$LIB_DIR/excludes.sh"
+source "$LIB_DIR/budget.sh"
+source "$LIB_DIR/changed.sh"
 source "$LIB_DIR/search.sh"
 source "$LIB_DIR/diff.sh"
 source "$LIB_DIR/analyze.sh"
@@ -30,6 +32,9 @@ source "$LIB_DIR/repox.sh"
 source "$LIB_DIR/context.sh"
 source "$LIB_DIR/ci.sh"
 source "$LIB_DIR/guard.sh"
+source "$LIB_DIR/diagnose.sh"
+source "$LIB_DIR/body.sh"
+source "$LIB_DIR/version.sh"
 
 CMD="${1:-help}"
 shift || true
@@ -41,6 +46,8 @@ if [[ "$CMD" == "auth" ]]; then
       ;;
   esac
 elif [[ "$CMD" == "profile" ]]; then
+  DX_ALLOW_MISSING_PROFILE=1
+elif [[ "$CMD" == "env" || "$CMD" == "doctor" || "$CMD" == "update" || "$CMD" == "version" || "$CMD" == "--version" ]]; then
   DX_ALLOW_MISSING_PROFILE=1
 fi
 
@@ -60,6 +67,10 @@ USAGE
   dx auth switch <name>        Print export command to activate a profile
   dx auth switch <name> --save Activate and save as default profile
   dx auth whoami               Show active config + test connections
+  dx env check                 Check local tools and dx config presence
+  dx doctor                    Diagnose dx setup and optional integrations
+  dx version                   Print dx version and install details
+  dx update --check            Check latest GitHub release tag
 
   dx profile delete <name>     Shortcut for dx auth profile delete <name>
 
@@ -76,28 +87,28 @@ USAGE
 
   dx code search <query> --ai              Compact ripgrep search for AI
   dx code search <query> --path lib --ai   Search selected paths
+  dx code search <query> --changed --ai    Search only changed files
   dx file find <query> --ai                Compact fd file finder for AI
   dx file find <query> --path test --ai    Find files under selected paths
 
   dx diff --ai                             Compact git diff summary
   dx diff --base origin/main --ai          Compare against a specific base
+  dx diff --ai --b s                       Small token budget output
+  dx diff --ai --budget full               Larger token budget output
   dx diff --files --ai                     Show changed files only
 
   dx analyze flutter --ai                  Compact flutter analyze summary
   dx scan security --ai                    Compact Trivy security scan
+  dx scan security --changed --ai          Changed-file security scan workflow
   dx scan security --severity CRITICAL,HIGH --ai
   dx scan security --scanners vuln,secret,misconfig --ai
   dx repox summary --ai                    Summarize available repox outputs
   dx context <TICKET|URL> --ai             Stateless Jira-centered work context
-  dx context <TICKET|URL> --include-diff --with-repox --ai
-
-  dx ci summary --mr <id> --ai             Summarize GitLab MR CI
-  dx ci summary --pr <id> --ai             Summarize GitHub PR checks
-  dx ci failed-jobs --mr <id> --ai         List failed GitLab CI jobs
-  dx ci failed-jobs --pr <id> --ai         List failed GitHub checks
-  dx ci logs --job <id> --ai               Compact failed log lines
+  dx context <TICKET|URL> --include-diff --ai --b f
+  dx context <TICKET|URL> --with-repox --ai Optional Repox context
 
   dx guard pre-mr --ai                     Stateless pre-MR risk checks
+  dx guard pre-mr --changed --ai           Scope guard checks to changed files
   dx guard pre-commit --ai                 Stateless pre-commit risk checks
   dx guard pre-mr --security --ai          Include Trivy security scan
   dx guard pre-commit --security --ai      Include Trivy security scan
@@ -109,6 +120,7 @@ USAGE
   dx mr open <TICKET> --changelog "..."  Override changelog
   dx mr open <TICKET> --body-file <path> Use an AI-generated MR body markdown file
   dx mr open <TICKET> --yes             Skip repo/profile confirmation prompt
+  dx mr body <TICKET> --include-diff     Generate MR body markdown without opening MR
   dx mr list                             List open MRs assigned to me
   dx mr view <MR-ID>                     Open MR in browser
 
@@ -119,6 +131,7 @@ USAGE
   dx pr open <TICKET> --changelog "..."  Override changelog
   dx pr open <TICKET> --body-file <path> Use an AI-generated PR body markdown file
   dx pr open <TICKET> --yes             Skip repo/profile confirmation prompt
+  dx pr body <TICKET> --include-diff     Generate PR body markdown without opening PR
   dx pr list                             List open PRs assigned to me
   dx pr view <PR-ID>                     Open PR in browser
 
@@ -128,7 +141,9 @@ EXAMPLES
   dx confluence read https://yourco.atlassian.net/wiki/spaces/.../pages/12345/...
   dx code search "Bloc" --ai
   dx diff --ai
+  dx diff --ai --b s
   dx context DE-1234 --include-diff --with-repox --ai
+  dx mr body DE-1234 --include-diff --output /tmp/mr.md
   dx mr open DE-1234 --draft
   dx pr open DE-1234 --target develop
 HELP
@@ -203,31 +218,39 @@ case "$CMD" in
     dx_guard "$@"
     ;;
 
+  env)
+    dx_env "$@"
+    ;;
+
+  doctor)
+    dx_doctor "$@"
+    ;;
+
   mr)
     config_validate_atlassian
-    config_validate_gitlab
     _atlassian_init
     SUB="${1:-}"
     [[ $# -gt 0 ]] && shift || true
     case "$SUB" in
-      open) gitlab_mr_open "$@" ;;
+      open) config_validate_gitlab; gitlab_mr_open "$@" ;;
+      body) dx_review_body MR "$@" ;;
       list) gitlab_mr_list ;;
       view) gitlab_mr_view "$@" ;;
-      *)    echo "Usage: dx mr open|list|view" >&2; exit 1 ;;
+      *)    echo "Usage: dx mr open|body|list|view" >&2; exit 1 ;;
     esac
     ;;
 
   pr)
     config_validate_atlassian
-    config_validate_github
     _atlassian_init
     SUB="${1:-}"
     [[ $# -gt 0 ]] && shift || true
     case "$SUB" in
-      open) github_pr_open "$@" ;;
+      open) config_validate_github; github_pr_open "$@" ;;
+      body) dx_review_body PR "$@" ;;
       list) github_pr_list ;;
       view) github_pr_view "$@" ;;
-      *)    echo "Usage: dx pr open|list|view" >&2; exit 1 ;;
+      *)    echo "Usage: dx pr open|body|list|view" >&2; exit 1 ;;
     esac
     ;;
 
@@ -250,6 +273,14 @@ case "$CMD" in
 
   help|--help|-h)
     _dx_help
+    ;;
+
+  version|--version)
+    dx_version
+    ;;
+
+  update)
+    dx_update "$@"
     ;;
 
   *)

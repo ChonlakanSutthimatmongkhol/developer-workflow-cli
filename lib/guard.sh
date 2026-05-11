@@ -8,7 +8,7 @@ dx_guard() {
 
   case "$sub" in
     pre-mr|pre-commit) dx_guard_run "$sub" "$@" ;;
-    *) echo "Usage: dx guard pre-mr|pre-commit [--security] --ai" >&2; return 1 ;;
+    *) echo "Usage: dx guard pre-mr|pre-commit [--changed] [--security] --ai" >&2; return 1 ;;
   esac
 }
 
@@ -23,12 +23,14 @@ dx_guard_run() {
   shift
   local ai=false
   local security=false
+  local changed=false
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --ai) ai=true ;;
       --security) security=true ;;
+      --changed) changed=true ;;
       --help|-h)
-        echo "Usage: dx guard pre-mr|pre-commit [--security] --ai"
+        echo "Usage: dx guard pre-mr|pre-commit [--changed] [--security] --ai"
         return 0
         ;;
       *) echo "Unknown option: $1" >&2; return 1 ;;
@@ -36,31 +38,45 @@ dx_guard_run() {
     shift
   done
 
-  _dx_git_root_required || return 1
+  dx_git_root_required || return 1
 
-  local branch files problems=() warnings=()
+  local branch files scope_label problems=() warnings=()
   branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
-  files=$(_dx_guard_changed_files | sort -u)
+  if $changed; then
+    files="$(dx_changed_files_default)"
+    scope_label="changed files"
+  else
+    files=$(_dx_guard_changed_files | sort -u)
+    scope_label="working tree"
+  fi
 
   if [[ -z "$files" ]]; then
-    warnings+=("No unstaged or staged changes detected.")
+    if $changed; then
+      warnings+=("No changed files detected in changed-file scope.")
+    else
+      warnings+=("No unstaged or staged changes detected.")
+    fi
   fi
 
   if printf '%s\n' "$files" | grep -E '(\.g\.dart|\.freezed\.dart|\.mocks\.dart)$' >/dev/null; then
     warnings+=("Generated files changed.")
   fi
 
-  if git diff --cached -- . ':!*.g.dart' ':!*.freezed.dart' ':!*.mocks.dart' 2>/dev/null | grep -E '^\+.*(debugPrint|console\.log|print\(|TODO:|FIXME:)' >/dev/null; then
+  local debug_pattern cred_pattern
+  debug_pattern='^\+.*('"debug"'Print|console[.]log|[T]ODO:|[F]IXME:)'
+  cred_pattern='^\+.*(AKIA[0-9A-Z]{16}|BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|([A-Za-z0-9_.-]*(api[_-]?key|secret|password|token)[A-Za-z0-9_.-]*[[:space:]]*[:=]))'
+
+  if git diff --cached -- . ':!*.md' ':!*.g.dart' ':!*.freezed.dart' ':!*.mocks.dart' 2>/dev/null | grep -E "$debug_pattern" >/dev/null; then
     problems+=("Debug prints or temporary markers found in staged diff.")
   fi
-  if git diff -- . ':!*.g.dart' ':!*.freezed.dart' ':!*.mocks.dart' 2>/dev/null | grep -E '^\+.*(debugPrint|console\.log|print\(|TODO:|FIXME:)' >/dev/null; then
+  if git diff -- . ':!*.md' ':!*.g.dart' ':!*.freezed.dart' ':!*.mocks.dart' 2>/dev/null | grep -E "$debug_pattern" >/dev/null; then
     problems+=("Debug prints or temporary markers found in unstaged diff.")
   fi
 
-  if git diff --cached -- . 2>/dev/null | grep -E '^\+.*(AKIA[0-9A-Z]{16}|BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|api[_-]?key|secret|password|token)' >/dev/null; then
+  if git diff --cached -- . 2>/dev/null | grep -E "$cred_pattern" >/dev/null; then
     problems+=("Secrets-like strings found in staged diff.")
   fi
-  if git diff -- . 2>/dev/null | grep -E '^\+.*(AKIA[0-9A-Z]{16}|BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|api[_-]?key|secret|password|token)' >/dev/null; then
+  if git diff -- . 2>/dev/null | grep -E "$cred_pattern" >/dev/null; then
     problems+=("Secrets-like strings found in unstaged diff.")
   fi
 
@@ -89,6 +105,7 @@ dx_guard_run() {
   ai_title "Guard ${mode}"
   ai_section "Summary"
   ai_kv "Branch" "$branch"
+  ai_kv "Scope" "$scope_label"
   ai_kv "Changed Files" "$(printf '%s\n' "$files" | sed '/^$/d' | wc -l | tr -d ' ')"
 
   ai_section "Problems"
@@ -111,9 +128,12 @@ dx_guard_run() {
   ai_suggest "Run existing test workflow outside dx if needed."
 
   ai_section "Suggested Next Commands"
-  ai_suggest "dx diff --ai"
-  ai_suggest "dx ci summary --mr <id> --ai"
-  ai_suggest "dx guard ${mode} --security --ai"
+  ai_suggest "dx diff --ai --b s"
+  if $changed; then
+    ai_suggest "dx guard ${mode} --changed --security --ai"
+  else
+    ai_suggest "dx guard ${mode} --security --ai"
+  fi
 
   local guard_status=0
   [[ ${#problems[@]} -eq 0 ]] || guard_status=1
@@ -121,7 +141,11 @@ dx_guard_run() {
   if $security; then
     printf '\n'
     local security_status=0
-    dx_scan_security --ai || security_status=$?
+    if $changed; then
+      dx_scan_security --changed --ai --b s || security_status=$?
+    else
+      dx_scan_security --ai --b s || security_status=$?
+    fi
     if [[ "$security_status" -ne 0 ]]; then
       return "$security_status"
     fi

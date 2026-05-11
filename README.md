@@ -5,8 +5,9 @@ Unified CLI that wraps **Jira**, **Confluence**, **GitLab**, **GitHub**, and sta
 ```
 dx jira read DE-1234 --ai
 dx confluence read https://...
-dx context DE-1234 --include-diff --with-repox --ai
-dx diff --ai
+dx env check --ai
+dx context DE-1234 --include-diff --ai --b s
+dx diff --ai --b f
 dx mr open DE-1234 --draft
 dx pr open DE-1234
 ```
@@ -173,31 +174,64 @@ dx confluence search "<query>" --limit 5 --ai
 ```bash
 dx code search <query> --ai                         # compact code search via rg
 dx code search <query> --path lib --path test --ai  # search selected paths
+dx code search <query> --changed --ai               # search changed files only
 dx file find <query> --ai                           # compact file finder via fd
 dx file find <query> --path test --ai               # find files under selected paths
 dx diff --ai                                        # compact git diff context
+dx diff --ai --b s                                  # small token budget
+dx diff --ai --budget full                          # larger token budget
 dx diff --base origin/main --ai                     # compare against a base ref
 dx diff --files --ai                                # changed files only
 dx context <TICKET|URL> --ai                        # Jira-centered work context
-dx context <TICKET|URL> --include-diff --with-repox --ai
+dx context <TICKET|URL> --include-diff --ai --b m   # include diff with medium budget
 ```
 
 These commands are designed for AI input and intentionally do not save, remember, or hand off context.
 
-### Analyze, Scan, Repox, CI, and Guard
+### Diagnose Setup
+
+```bash
+dx env check
+dx env check --ai
+dx doctor
+dx doctor --ai
+```
+
+`dx env check` performs lightweight local checks only. `dx doctor` gives a deeper setup summary without printing secrets or tokens.
+
+### Token Budget
+
+AI-facing commands accept compact budget flags:
+
+```bash
+dx context DE-1234 --ai --b s
+dx diff --ai --b f
+dx scan security --ai --budget small
+```
+
+Budgets are `s`/`small`, `m`/`medium`, and `f`/`full`. Default behavior is medium.
+
+### Changed File Scope
+
+```bash
+dx code search "debugPrint" --changed --ai
+dx scan security --changed --ai
+dx guard pre-mr --changed --security --ai
+```
+
+Changed-file scope uses Git to focus AI output on local branch, staged, unstaged, and untracked changes while excluding common generated/noisy paths.
+
+### Analyze, Scan, Repox, and Guard
 
 ```bash
 dx analyze flutter --ai                  # compact flutter analyze summary
 dx scan security --ai                    # Trivy fs scan for CRITICAL,HIGH vuln + secret findings
+dx scan security --changed --ai          # changed-file security workflow
 dx scan security --severity CRITICAL,HIGH --ai
 dx scan security --scanners vuln,secret,misconfig --ai
 dx repox summary --ai                    # read available .repox outputs
-dx ci summary --mr <id> --ai             # summarize GitLab MR CI
-dx ci summary --pr <id> --ai             # summarize GitHub PR checks
-dx ci failed-jobs --mr <id> --ai         # list failed GitLab jobs
-dx ci failed-jobs --pr <id> --ai         # list failed GitHub checks
-dx ci logs --job <id> --ai               # compact failed log lines
 dx guard pre-mr --ai                     # stateless pre-MR risk checks
+dx guard pre-mr --changed --ai           # guard only changed files
 dx guard pre-commit --ai                 # stateless pre-commit risk checks
 dx guard pre-mr --security --ai          # include Trivy security scan
 dx guard pre-commit --security --ai      # include Trivy security scan
@@ -206,6 +240,15 @@ dx guard pre-commit --security --ai      # include Trivy security scan
 `dx scan security` runs `trivy fs` with `--quiet`, compacts the JSON result into markdown, and exits with Trivy's status. Defaults are path `.`, severity `CRITICAL,HIGH`, and scanners `vuln,secret`. If Trivy is missing, install it with `brew install trivy`.
 
 `dx guard` only runs Trivy when `--security` is provided. It never runs tests. Use the existing repo or ctx-saver test workflow when tests are needed.
+
+### Optional Repox Integration
+
+```bash
+dx repox summary --ai
+dx context DE-1234 --with-repox --ai
+```
+
+Repox is optional repo knowledge. Default `dx context` output does not include Repox unless `--with-repox` is passed.
 
 ### MR (GitLab)
 
@@ -216,6 +259,7 @@ dx mr open <TICKET> --target <branch>    # override target branch (default: main
 dx mr open <TICKET> --changelog "..."    # override changelog
 dx mr open <TICKET> --body-file <path>   # use an AI-generated MR body markdown file
 dx mr open <TICKET> --yes                # skip repo/profile confirmation prompt
+dx mr body <TICKET> --include-diff --output /tmp/mr.md
 dx mr list                               # list open MRs assigned to me
 dx mr view <MR-ID>                       # open MR in browser
 ```
@@ -235,6 +279,7 @@ dx pr open <TICKET> --target <branch>    # override target branch (default: main
 dx pr open <TICKET> --changelog "..."    # override changelog
 dx pr open <TICKET> --body-file <path>   # use an AI-generated PR body markdown file
 dx pr open <TICKET> --yes                # skip repo/profile confirmation prompt
+dx pr body <TICKET> --include-diff --output /tmp/pr.md
 dx pr list                               # list open PRs assigned to me
 dx pr view <PR-ID>                       # open PR in browser
 ```
@@ -250,6 +295,17 @@ For smarter Jira-aware PR bodies, use the AI workflow command/prompt:
 - Copilot/Codex prompt: `ai-workflow/prompts/pr-from-jira.prompt.md`
 
 That workflow reads Jira, current commits, and test output, writes a PR/MR body markdown file, then calls `dx pr open ... --body-file <file>` or `dx mr open ... --body-file <file>`.
+
+### Version and Update Check
+
+```bash
+dx --version
+dx version
+dx update --check
+dx update --check --ai
+```
+
+`dx update --check` checks the latest GitHub release tag. It does not install, modify files, or store update history.
 
 ---
 
@@ -289,14 +345,18 @@ dx/
 │   ├── git.sh                 ← changelog from git log
 │   ├── ai_output.sh           ← compact markdown helpers
 │   ├── excludes.sh            ← shared generated/noisy excludes
+│   ├── budget.sh              ← shared AI token budget helpers
+│   ├── changed.sh             ← shared changed-file scope helpers
 │   ├── search.sh              ← dx code/file commands
 │   ├── diff.sh                ← dx diff command
 │   ├── analyze.sh             ← dx analyze command
 │   ├── scan.sh                ← dx scan command
 │   ├── repox.sh               ← dx repox command
 │   ├── context.sh             ← dx context command
-│   ├── ci.sh                  ← dx ci commands
-│   └── guard.sh               ← dx guard commands
+│   ├── guard.sh               ← dx guard commands
+│   ├── diagnose.sh            ← dx env/doctor commands
+│   ├── body.sh                ← dx mr/pr body commands
+│   └── version.sh             ← dx version/update commands
 ├── ai-workflow/               ← AI workflow docs and command guides
 ├── templates/
 │   └── mr_description_mobile.md      ← MR/PR description template
@@ -323,10 +383,12 @@ Example prompts:
 
 ```bash
 dx scan security --ai || true
+dx diff --ai --b s
+dx code search "TODO" --changed --ai
 dx scan security --severity CRITICAL,HIGH --ai || true
 dx scan security --scanners vuln,secret,misconfig --ai || true
-dx guard pre-commit --security --ai || true
-dx guard pre-mr --security --ai || true
+dx guard pre-commit --changed --security --ai || true
+dx guard pre-mr --changed --security --ai || true
 ```
 
 Expected behavior:

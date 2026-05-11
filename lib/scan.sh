@@ -8,12 +8,12 @@ dx_scan() {
 
   case "$sub" in
     security) dx_scan_security "$@" ;;
-    *) echo "Usage: dx scan security [--severity CRITICAL,HIGH] [--scanners vuln,secret] [--path .] --ai" >&2; return 1 ;;
+    *) echo "Usage: dx scan security [--severity CRITICAL,HIGH] [--scanners vuln,secret] [--path .] [--changed] [--b s|m|f] [--budget small|medium|full] --ai" >&2; return 1 ;;
   esac
 }
 
 _dx_scan_security_usage() {
-  echo "Usage: dx scan security [--severity CRITICAL,HIGH] [--scanners vuln,secret] [--path .] --ai"
+  echo "Usage: dx scan security [--severity CRITICAL,HIGH] [--scanners vuln,secret] [--path .] [--changed] [--b s|m|f] [--budget small|medium|full] --ai"
 }
 
 _dx_scan_trivy_command_text() {
@@ -52,7 +52,7 @@ _dx_scan_render_unparsed() {
 }
 
 _dx_scan_render_json() {
-  local status="$1" severity="$2" scanners="$3" scan_path="$4" json="$5" trivy_warnings="$6"
+  local status="$1" severity="$2" scanners="$3" scan_path="$4" json="$5" trivy_warnings="$6" findings_limit="$7" scope_note="$8"
 
   printf '%s' "$json" | DX_SCAN_TRIVY_WARNINGS="$trivy_warnings" python3 -c '
 import json
@@ -60,7 +60,8 @@ import os
 import sys
 from collections import Counter
 
-status, severity, scanners, scan_path = sys.argv[1:5]
+status, severity, scanners, scan_path, findings_limit, scope_note = sys.argv[1:7]
+findings_limit = int(findings_limit)
 trivy_warnings = os.environ.get("DX_SCAN_TRIVY_WARNINGS", "")
 
 def clean(value, limit=180):
@@ -137,6 +138,7 @@ print(f"Path: {scan_path}")
 print(f"Severity: {severity}")
 print(f"Scanners: {scanners}")
 print(f"Command: trivy fs --quiet --format json --exit-code 1 --severity {severity} --scanners {scanners} {scan_path}")
+print(f"Scope: {scope_note}")
 
 print("\n## Findings")
 if findings:
@@ -151,7 +153,7 @@ else:
 
 print("\n## Important Findings")
 if findings:
-    for f in findings[:20]:
+    for f in findings[:findings_limit]:
         if f["kind"] == "vuln":
             fixed = "; fixed: {}".format(f.get("fixed")) if f.get("fixed") else ""
             pkg = " package: {}".format(f.get("package")) if f.get("package") else ""
@@ -197,6 +199,8 @@ bullet("dx guard pre-mr --security --ai")
 
 print("\n## Warnings")
 warnings = []
+if scope_note:
+    warnings.append(scope_note)
 if int(status) > 1:
     warnings.append(f"Trivy exited with status {status}; scan output may be incomplete.")
 if "misconfig" in scanners.split(","):
@@ -209,18 +213,24 @@ if not warnings:
     warnings.append("(none)")
 for warning in warnings:
     bullet(warning)
-' "$status" "$severity" "$scanners" "$scan_path"
+' "$status" "$severity" "$scanners" "$scan_path" "$findings_limit" "$scope_note"
 }
 
 dx_scan_security() {
+  local args=()
+  dx_parse_budget args "$@" || return 1
+  set -- "${args[@]}"
+
   local ai=false
   local severity="CRITICAL,HIGH"
   local scanners="vuln,secret"
   local scan_path="."
+  local changed=false
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --ai) ai=true ;;
+      --changed) changed=true ;;
       --severity) severity="${2:?--severity requires a value}"; shift ;;
       --scanners) scanners="${2:?--scanners requires a value}"; shift ;;
       --path) scan_path="${2:?--path requires a value}"; shift ;;
@@ -235,11 +245,42 @@ dx_scan_security() {
 
   command -v trivy >/dev/null 2>&1 || { echo "brew install trivy" >&2; return 127; }
 
-  local output status trivy_warnings stdout_file stderr_file
+  local output status trivy_warnings stdout_file stderr_file scope_note changed_files scope_paths
+  scope_note="full repo scan"
+
+  if $changed; then
+    dx_git_root_required || return 1
+    changed_files="$(dx_changed_files_default)"
+    if [[ -z "$changed_files" ]]; then
+      scope_note="changed scope requested; no changed files, scanning repo root"
+      scan_path="."
+    else
+      scope_paths="$(dx_changed_scan_scope "$changed_files")"
+      if [[ "$scope_paths" == "." ]]; then
+        scope_note="changed scope requested; dependency/config changes detected, scanning repo root"
+        scan_path="."
+      elif [[ "$(printf '%s\n' "$scope_paths" | sed '/^$/d' | wc -l | tr -d ' ')" -gt 1 ]]; then
+        scope_note="changed scope requested; multiple changed dirs detected, scanning repo root with secret scanner"
+        scanners="secret"
+        scan_path="."
+      else
+        scope_note="changed scope requested; scanning changed parent dirs"
+        scanners="secret"
+        scan_path="$scope_paths"
+      fi
+    fi
+  fi
+
   stdout_file=$(mktemp "${TMPDIR:-/tmp}/dx-trivy-out.XXXXXX")
   stderr_file=$(mktemp "${TMPDIR:-/tmp}/dx-trivy-err.XXXXXX")
 
-  if trivy fs --quiet --format json --exit-code 1 --severity "$severity" --scanners "$scanners" "$scan_path" >"$stdout_file" 2>"$stderr_file"; then
+  local trivy_paths=()
+  while IFS= read -r p; do
+    [[ -n "$p" ]] && trivy_paths+=("$p")
+  done <<< "$scan_path"
+  [[ ${#trivy_paths[@]} -gt 0 ]] || trivy_paths=(".")
+
+  if trivy fs --quiet --format json --exit-code 1 --severity "$severity" --scanners "$scanners" "${trivy_paths[@]}" >"$stdout_file" 2>"$stderr_file"; then
     status=0
   else
     status=$?
@@ -249,7 +290,7 @@ dx_scan_security() {
   rm -f "$stdout_file" "$stderr_file"
 
   local rendered
-  if rendered=$(_dx_scan_render_json "$status" "$severity" "$scanners" "$scan_path" "$output" "$trivy_warnings" 2>/dev/null); then
+  if rendered=$(_dx_scan_render_json "$status" "$severity" "$scanners" "$scan_path" "$output" "$trivy_warnings" "$(dx_budget_findings_limit)" "$scope_note" 2>/dev/null); then
     printf '%s\n' "$rendered"
   else
     _dx_scan_render_unparsed "$status" "$severity" "$scanners" "$scan_path" "$(printf '%s\n%s' "$trivy_warnings" "$output")"

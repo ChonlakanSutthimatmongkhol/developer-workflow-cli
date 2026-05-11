@@ -22,9 +22,17 @@ PYEOF
 
 dx_context() {
   local ticket="${1:-}"
-  [[ -n "$ticket" ]] || { echo "Usage: dx context <ticket> [--include-diff] [--with-repox] --ai" >&2; return 1; }
-  [[ "$ticket" != --* ]] || { echo "Usage: dx context <ticket> [--include-diff] [--with-repox] --ai" >&2; return 1; }
+  if [[ "$ticket" == "--help" || "$ticket" == "-h" ]]; then
+    echo "Usage: dx context <ticket> [--include-diff] [--with-repox] [--b s|m|f] --ai"
+    return 0
+  fi
+  [[ -n "$ticket" ]] || { echo "Usage: dx context <ticket> [--include-diff] [--with-repox] [--b s|m|f] --ai" >&2; return 1; }
+  [[ "$ticket" != --* ]] || { echo "Usage: dx context <ticket> [--include-diff] [--with-repox] [--b s|m|f] --ai" >&2; return 1; }
   shift || true
+
+  local args=()
+  dx_parse_budget args "$@" || return 1
+  set -- "${args[@]}"
 
   local include_diff=false
   local with_repox=false
@@ -36,7 +44,7 @@ dx_context() {
       --with-repox) with_repox=true ;;
       --ai) ai=true ;;
       --help|-h)
-        echo "Usage: dx context <ticket> [--include-diff] [--with-repox] --ai"
+        echo "Usage: dx context <ticket> [--include-diff] [--with-repox] [--b s|m|f] --ai"
         return 0
         ;;
       *) echo "Unknown option: $1" >&2; return 1 ;;
@@ -50,8 +58,13 @@ dx_context() {
   links=$(_dx_extract_confluence_links "$jira_output")
 
   ai_title "Work Context"
+  ai_section "Inputs"
+  ai_kv "Budget" "$DX_BUDGET"
+  ai_kv "Include Diff" "$include_diff"
+  ai_kv "With Repox" "$with_repox"
+
   ai_section "Ticket"
-  printf '%s\n' "$jira_output"
+  printf '%s\n' "$jira_output" | sed -n '1,'"$(dx_budget_preview_lines)"'p'
 
   ai_section "Current Branch"
   ai_kv "Branch" "$branch"
@@ -63,8 +76,10 @@ dx_context() {
       [[ -n "$link" ]] || continue
       ai_section "Spec Preview"
       ai_kv "Source" "$link"
-      if confluence_output=$(atlassian_confluence "$link" --ai 2>/dev/null); then
-        printf '%s\n' "$confluence_output" | sed -n '1,80p'
+      if [[ "$DX_BUDGET" == "small" ]]; then
+        printf -- '- Skipped in small budget.\n'
+      elif confluence_output=$(atlassian_confluence "$link" --ai 2>/dev/null); then
+        printf '%s\n' "$confluence_output" | sed -n '1,'"$(dx_budget_preview_lines)"'p'
       else
         printf -- '- Could not read linked Confluence page.\n'
       fi
@@ -75,18 +90,21 @@ dx_context() {
 
   if $include_diff; then
     ai_section "Diff Summary"
-    dx_diff --ai | sed -n '1,160p'
+    if [[ "$DX_BUDGET" == "small" ]]; then
+      dx_diff --ai --b s --files | sed -n '1,'"$(dx_budget_preview_lines)"'p'
+    else
+      dx_diff --ai --b "$DX_BUDGET" | sed -n '1,'"$(dx_budget_diff_lines)"'p'
+    fi
   fi
 
   if $with_repox; then
     ai_section "Repo Convention from Repox"
-    dx_repox_summary --ai | sed -n '1,140p'
+    dx_repox_summary --ai | sed -n '1,'"$(dx_budget_preview_lines)"'p'
   fi
 
   ai_section "Suggested Next Commands"
-  ai_suggest "dx diff --ai"
-  ai_suggest "dx guard pre-mr --ai"
-  ai_suggest "dx ci summary --mr <id> --ai"
+  ai_suggest "dx diff --ai --b $DX_BUDGET"
+  ai_suggest "dx guard pre-mr --changed --ai"
 
   ai_section "Warnings"
   ai_warning "This command prints context only; it does not persist output."

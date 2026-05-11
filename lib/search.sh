@@ -19,22 +19,24 @@ _dx_read_arg_lines() {
 }
 
 dx_code_search() {
-  [[ "${1:-}" == "search" ]] || { echo "Usage: dx code search <query> [--path <dir> ...] --ai" >&2; return 1; }
+  [[ "${1:-}" == "search" ]] || { echo "Usage: dx code search <query> [--path <dir> ...] [--changed] --ai" >&2; return 1; }
   shift
 
   local query=""
   local ai=false
+  local changed=false
   local paths=()
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --ai) ai=true ;;
+      --changed) changed=true ;;
       --path)
         paths+=("${2:?--path requires a directory}")
         shift
         ;;
       --help|-h)
-        echo "Usage: dx code search <query> [--path <dir> ...] --ai"
+        echo "Usage: dx code search <query> [--path <dir> ...] [--changed] --ai"
         return 0
         ;;
       *)
@@ -48,13 +50,31 @@ dx_code_search() {
     shift
   done
 
-  [[ -n "$query" ]] || { echo "Usage: dx code search <query> [--path <dir> ...] --ai" >&2; return 1; }
+  [[ -n "$query" ]] || { echo "Usage: dx code search <query> [--path <dir> ...] [--changed] --ai" >&2; return 1; }
   command -v rg >/dev/null 2>&1 || { echo "Missing required tool: rg. Install with: brew install ripgrep" >&2; return 127; }
 
-  if [[ ${#paths[@]} -eq 0 ]]; then
+  local scope="default paths"
+  if $changed; then
+    dx_git_root_required || return 1
+    paths=()
+    while IFS= read -r p; do paths+=("$p"); done < <(dx_changed_paths_for_tool)
+    scope="changed files"
+  elif [[ ${#paths[@]} -eq 0 ]]; then
     while IFS= read -r p; do paths+=("$p"); done < <(_dx_existing_default_paths)
   fi
-  [[ ${#paths[@]} -gt 0 ]] || paths=(".")
+  if [[ ${#paths[@]} -eq 0 ]]; then
+    ai_title "Code Search"
+    ai_section "Inputs"
+    ai_kv "Query" "$query"
+    ai_kv "Scope" "$scope"
+    ai_section "Matched Files"
+    printf -- '- (none)\n'
+    ai_section "Preview"
+    $changed && printf -- '- No changed readable source files.\n' || printf -- '- No paths available.\n'
+    ai_section "Suggested Next Commands"
+    ai_suggest "dx diff --files --ai"
+    return 0
+  fi
 
   local rg_args=(--line-number --column --color never --max-count 20)
   _dx_read_arg_lines rg_args dx_rg_exclude_args
@@ -69,6 +89,7 @@ dx_code_search() {
   ai_title "Code Search"
   ai_section "Inputs"
   ai_kv "Query" "$query"
+  ai_kv "Scope" "$scope"
   ai_kv "Paths" "${paths[*]}"
 
   ai_section "Matched Files"
@@ -163,4 +184,3 @@ dx_file_find() {
   ai_suggest "dx code search \"$query\" --ai"
   ai_suggest "dx diff --ai"
 }
-
