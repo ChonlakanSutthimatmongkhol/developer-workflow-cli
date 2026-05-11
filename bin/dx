@@ -72,6 +72,7 @@ USAGE
 
   dx confluence read <URL|PAGE-ID>         Human-readable page
   dx confluence read <URL|PAGE-ID> --ai    Compact for AI
+  dx confluence search "<query>" --limit 5 --ai
 
   dx code search <query> --ai              Compact ripgrep search for AI
   dx code search <query> --path lib --ai   Search selected paths
@@ -154,8 +155,9 @@ case "$CMD" in
     SUB="${1:-}"
     [[ $# -gt 0 ]] && shift || true
     case "$SUB" in
-      read) atlassian_confluence "$@" ;;
-      *)    echo "Usage: dx confluence read <URL|PAGE-ID>" >&2; exit 1 ;;
+      read)   atlassian_confluence "$@" ;;
+      search) atlassian_confluence_search "$@" ;;
+      *)      echo "Usage: dx confluence read|search" >&2; exit 1 ;;
     esac
     ;;
 

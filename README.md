@@ -29,8 +29,9 @@ dx pr open DE-1234
 
 Install optional CLIs:
 ```bash
-brew install glab gh ripgrep fd trivy jq
+brew install glab gh fd ripgrep trivy jq
 ```
+If `fd` is still not found after install, ensure `/opt/homebrew/bin` is on `PATH`.
 
 ---
 
@@ -164,6 +165,7 @@ Ticket can be an ID (`DE-1234`) or a full Jira URL.
 ```bash
 dx confluence read <URL|PAGE-ID>         # human-readable
 dx confluence read <URL|PAGE-ID> --ai    # compact for AI
+dx confluence search "<query>" --limit 5 --ai
 ```
 
 ### AI Context

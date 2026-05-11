@@ -425,6 +425,113 @@ print(out.strip())
 PYEOF
 }
 
+atlassian_confluence_search() {
+  local query="${1:?Usage: dx confluence search \"query\" [--limit N] [--ai]}"
+  shift
+
+  local limit=10
+  local ai=false
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --limit)
+        shift
+        limit="${1:?Usage: dx confluence search \"query\" --limit N}"
+        ;;
+      --limit=*)
+        limit="${1#--limit=}"
+        ;;
+      --ai)
+        ai=true
+        ;;
+      *)
+        echo "Unknown option: $1" >&2
+        echo "Usage: dx confluence search \"query\" [--limit N] [--ai]" >&2
+        exit 1
+        ;;
+    esac
+    shift
+  done
+
+  if ! [[ "$limit" =~ ^[0-9]+$ ]] || [[ "$limit" -lt 1 ]]; then
+    echo "Usage: dx confluence search \"query\" [--limit N] [--ai]" >&2
+    echo "--limit must be a positive integer" >&2
+    exit 1
+  fi
+
+  local confluence_base="${CONFLUENCE_URL:-${JIRA_URL}/wiki}"
+  local cql
+  cql=$(python3 - "$query" <<'PYEOF'
+import sys
+
+query = sys.argv[1].replace('\\', '\\\\').replace('"', '\\"')
+print(f'type = page AND text ~ "{query}" ORDER BY lastmodified DESC')
+PYEOF
+)
+
+  local encoded
+  encoded=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$cql")
+
+  local json
+  json=$(curl -s -f \
+    -H "$AUTH_HEADER" \
+    -H "Accept: application/json" \
+    "${confluence_base}/rest/api/content/search?cql=${encoded}&limit=${limit}&expand=space,version")
+
+  python3 - "$json" "$query" "$confluence_base" "$ai" <<'PYEOF'
+import sys, json, re
+
+data = json.loads(sys.argv[1])
+query = sys.argv[2]
+base = (data.get("_links", {}).get("base") or sys.argv[3]).rstrip("/")
+ai_mode = sys.argv[4] == "true"
+results = data.get("results", [])
+
+def strip_tags(value):
+    value = re.sub(r"<[^>]+>", "", value or "")
+    return " ".join(value.split())
+
+def decode_entities(value):
+    return (value.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+                 .replace("&nbsp;", " ").replace("&quot;", '"').replace("&#39;", "'"))
+
+def page_url(item):
+    links = item.get("_links", {})
+    webui = links.get("webui") or ""
+    if webui.startswith("http"):
+        return webui
+    return f"{base}{webui}" if webui else base
+
+def title(item):
+    return decode_entities(strip_tags(item.get("title", "")))
+
+if ai_mode:
+    print(f"# Confluence Search: {query}")
+    print(f"{len(results)} results\n")
+    for item in results:
+        space = item.get("space", {})
+        version = item.get("version", {})
+        updated = version.get("when", "")
+        by = (version.get("by") or {}).get("displayName", "")
+        meta = [f"ID: {item.get('id', '')}", f"Space: {space.get('key') or space.get('name') or '-'}"]
+        if updated:
+            meta.append(f"Updated: {updated}")
+        if by:
+            meta.append(f"By: {by}")
+        print(f"- [{title(item)}]({page_url(item)}) | " + " | ".join(meta))
+    raise SystemExit
+
+print(f"{'ID':<14} {'SPACE':<12} {'UPDATED':<20} TITLE")
+print("-" * 90)
+for item in results:
+    space = item.get("space", {})
+    version = item.get("version", {})
+    updated = (version.get("when") or "")[:19]
+    print(f"{item.get('id', ''):<14} {(space.get('key') or space.get('name') or '-')[:11]:<12} {updated:<20} {title(item)[:60]}")
+print(f"\n{len(results)} results")
+PYEOF
+}
+
 atlassian_whoami() {
   echo "JIRA_URL : ${JIRA_URL}"
   echo "USER     : ${JIRA_USER}"
