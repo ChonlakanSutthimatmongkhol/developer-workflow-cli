@@ -25,6 +25,7 @@ source "$LIB_DIR/excludes.sh"
 source "$LIB_DIR/search.sh"
 source "$LIB_DIR/diff.sh"
 source "$LIB_DIR/analyze.sh"
+source "$LIB_DIR/scan.sh"
 source "$LIB_DIR/repox.sh"
 source "$LIB_DIR/context.sh"
 source "$LIB_DIR/ci.sh"
@@ -82,6 +83,9 @@ USAGE
   dx diff --files --ai                     Show changed files only
 
   dx analyze flutter --ai                  Compact flutter analyze summary
+  dx scan security --ai                    Compact Trivy security scan
+  dx scan security --severity CRITICAL,HIGH --ai
+  dx scan security --scanners vuln,secret,misconfig --ai
   dx repox summary --ai                    Summarize available repox outputs
   dx context <TICKET|URL> --ai             Stateless Jira-centered work context
   dx context <TICKET|URL> --include-diff --with-repox --ai
@@ -94,6 +98,8 @@ USAGE
 
   dx guard pre-mr --ai                     Stateless pre-MR risk checks
   dx guard pre-commit --ai                 Stateless pre-commit risk checks
+  dx guard pre-mr --security --ai          Include Trivy security scan
+  dx guard pre-commit --security --ai      Include Trivy security scan
 
   dx mr open <TICKET>                   Create GitLab MR from ticket
   dx mr open <TICKET> --draft           Create as Draft
@@ -167,6 +173,10 @@ case "$CMD" in
 
   analyze)
     dx_analyze "$@"
+    ;;
+
+  scan)
+    dx_scan "$@"
     ;;
 
   repox)

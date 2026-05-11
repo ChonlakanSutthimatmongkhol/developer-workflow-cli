@@ -8,7 +8,7 @@ dx_guard() {
 
   case "$sub" in
     pre-mr|pre-commit) dx_guard_run "$sub" "$@" ;;
-    *) echo "Usage: dx guard pre-mr|pre-commit --ai" >&2; return 1 ;;
+    *) echo "Usage: dx guard pre-mr|pre-commit [--security] --ai" >&2; return 1 ;;
   esac
 }
 
@@ -22,11 +22,13 @@ dx_guard_run() {
   local mode="$1"
   shift
   local ai=false
+  local security=false
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --ai) ai=true ;;
+      --security) security=true ;;
       --help|-h)
-        echo "Usage: dx guard pre-mr|pre-commit --ai"
+        echo "Usage: dx guard pre-mr|pre-commit [--security] --ai"
         return 0
         ;;
       *) echo "Unknown option: $1" >&2; return 1 ;;
@@ -111,6 +113,20 @@ dx_guard_run() {
   ai_section "Suggested Next Commands"
   ai_suggest "dx diff --ai"
   ai_suggest "dx ci summary --mr <id> --ai"
+  ai_suggest "dx guard ${mode} --security --ai"
 
-  [[ ${#problems[@]} -eq 0 ]]
+  local guard_status=0
+  [[ ${#problems[@]} -eq 0 ]] || guard_status=1
+
+  if $security; then
+    printf '\n'
+    local security_status=0
+    dx_scan_security --ai || security_status=$?
+    if [[ "$security_status" -ne 0 ]]; then
+      return "$security_status"
+    fi
+    return "$guard_status"
+  fi
+
+  return "$guard_status"
 }

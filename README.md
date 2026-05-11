@@ -23,11 +23,13 @@ dx pr open DE-1234
 | `rg` | `dx code search` |
 | `fd` | `dx file find` |
 | `flutter` | `dx analyze flutter` |
+| `trivy` | `dx scan security`, `dx guard --security` |
+| `jq` | optional JSON inspection for Trivy output |
 | `repox` | optional input for `dx repox summary` |
 
 Install optional CLIs:
 ```bash
-brew install glab gh ripgrep fd
+brew install glab gh ripgrep fd trivy jq
 ```
 
 ---
@@ -180,10 +182,13 @@ dx context <TICKET|URL> --include-diff --with-repox --ai
 
 These commands are designed for AI input and intentionally do not save, remember, or hand off context.
 
-### Analyze, Repox, CI, and Guard
+### Analyze, Scan, Repox, CI, and Guard
 
 ```bash
 dx analyze flutter --ai                  # compact flutter analyze summary
+dx scan security --ai                    # Trivy fs scan for CRITICAL,HIGH vuln + secret findings
+dx scan security --severity CRITICAL,HIGH --ai
+dx scan security --scanners vuln,secret,misconfig --ai
 dx repox summary --ai                    # read available .repox outputs
 dx ci summary --mr <id> --ai             # summarize GitLab MR CI
 dx ci summary --pr <id> --ai             # summarize GitHub PR checks
@@ -192,9 +197,13 @@ dx ci failed-jobs --pr <id> --ai         # list failed GitHub checks
 dx ci logs --job <id> --ai               # compact failed log lines
 dx guard pre-mr --ai                     # stateless pre-MR risk checks
 dx guard pre-commit --ai                 # stateless pre-commit risk checks
+dx guard pre-mr --security --ai          # include Trivy security scan
+dx guard pre-commit --security --ai      # include Trivy security scan
 ```
 
-`dx guard` never runs tests. Use the existing repo or ctx-saver test workflow when tests are needed.
+`dx scan security` runs `trivy fs` with `--quiet`, compacts the JSON result into markdown, and exits with Trivy's status. Defaults are path `.`, severity `CRITICAL,HIGH`, and scanners `vuln,secret`. If Trivy is missing, install it with `brew install trivy`.
+
+`dx guard` only runs Trivy when `--security` is provided. It never runs tests. Use the existing repo or ctx-saver test workflow when tests are needed.
 
 ### MR (GitLab)
 
@@ -281,6 +290,7 @@ dx/
 │   ├── search.sh              ← dx code/file commands
 │   ├── diff.sh                ← dx diff command
 │   ├── analyze.sh             ← dx analyze command
+│   ├── scan.sh                ← dx scan command
 │   ├── repox.sh               ← dx repox command
 │   ├── context.sh             ← dx context command
 │   ├── ci.sh                  ← dx ci commands
@@ -304,3 +314,21 @@ Example prompts:
 /dx search "login bug" and list results
 /dx read confluence https://...
 ```
+
+---
+
+## Smoke Test Steps
+
+```bash
+dx scan security --ai || true
+dx scan security --severity CRITICAL,HIGH --ai || true
+dx scan security --scanners vuln,secret,misconfig --ai || true
+dx guard pre-commit --security --ai || true
+dx guard pre-mr --security --ai || true
+```
+
+Expected behavior:
+- Output is compact markdown with Summary, Inputs, Findings, Important Findings, Suggested Fixes, Suggested Next Commands, and Warnings sections.
+- No reports or scan history are written by default.
+- The command exits non-zero when Trivy reports threshold findings.
+- Without `--security`, guard does not run Trivy.
