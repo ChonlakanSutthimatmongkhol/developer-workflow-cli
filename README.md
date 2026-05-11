@@ -1,10 +1,12 @@
 # dx — Developer Workflow CLI
 
-Unified CLI that wraps **Jira**, **Confluence**, **GitLab**, and **GitHub** into a single `dx` command.
+Unified CLI that wraps **Jira**, **Confluence**, **GitLab**, **GitHub**, and stateless AI workflow context into a single `dx` command.
 
 ```
 dx jira read DE-1234 --ai
 dx confluence read https://...
+dx context DE-1234 --include-diff --with-repox --ai
+dx diff --ai
 dx mr open DE-1234 --draft
 dx pr open DE-1234
 ```
@@ -18,10 +20,14 @@ dx pr open DE-1234
 | `bash` + `curl` + `python3` | always (macOS built-in) |
 | `glab` | `dx mr` (GitLab) |
 | `gh` | `dx pr` (GitHub) |
+| `rg` | `dx code search` |
+| `fd` | `dx file find` |
+| `flutter` | `dx analyze flutter` |
+| `repox` | optional input for `dx repox summary` |
 
 Install optional CLIs:
 ```bash
-brew install glab gh
+brew install glab gh ripgrep fd
 ```
 
 ---
@@ -115,6 +121,15 @@ DX_PROFILE=work dx jira read DE-1234  # one-off
 
 ## Commands
 
+### What is dx?
+
+`dx` is a stateless compact context provider for active development work. It prints current information for AI agents and humans to read, but it does not store context or manage sessions.
+
+Tool boundaries:
+- `repox` owns repo knowledge, conventions, scaffolding guidance, and maps.
+- `dx` owns stateless compact active-work context.
+- `ctx-saver` owns memory, session lifecycle, handoff, output compression, and test workflow.
+
 ### Auth
 
 ```bash
@@ -148,6 +163,38 @@ Ticket can be an ID (`DE-1234`) or a full Jira URL.
 dx confluence read <URL|PAGE-ID>         # human-readable
 dx confluence read <URL|PAGE-ID> --ai    # compact for AI
 ```
+
+### AI Context
+
+```bash
+dx code search <query> --ai                         # compact code search via rg
+dx code search <query> --path lib --path test --ai  # search selected paths
+dx file find <query> --ai                           # compact file finder via fd
+dx file find <query> --path test --ai               # find files under selected paths
+dx diff --ai                                        # compact git diff context
+dx diff --base origin/main --ai                     # compare against a base ref
+dx diff --files --ai                                # changed files only
+dx context <TICKET|URL> --ai                        # Jira-centered work context
+dx context <TICKET|URL> --include-diff --with-repox --ai
+```
+
+These commands are designed for AI input and intentionally do not save, remember, or hand off context.
+
+### Analyze, Repox, CI, and Guard
+
+```bash
+dx analyze flutter --ai                  # compact flutter analyze summary
+dx repox summary --ai                    # read available .repox outputs
+dx ci summary --mr <id> --ai             # summarize GitLab MR CI
+dx ci summary --pr <id> --ai             # summarize GitHub PR checks
+dx ci failed-jobs --mr <id> --ai         # list failed GitLab jobs
+dx ci failed-jobs --pr <id> --ai         # list failed GitHub checks
+dx ci logs --job <id> --ai               # compact failed log lines
+dx guard pre-mr --ai                     # stateless pre-MR risk checks
+dx guard pre-commit --ai                 # stateless pre-commit risk checks
+```
+
+`dx guard` never runs tests. Use the existing repo or ctx-saver test workflow when tests are needed.
 
 ### MR (GitLab)
 
@@ -228,7 +275,17 @@ dx/
 │   ├── atlassian.sh           ← Jira + Confluence API (ADF/HTML → Markdown)
 │   ├── gitlab.sh              ← glab wrapper, dx mr commands
 │   ├── github.sh              ← gh wrapper, dx pr commands
-│   └── git.sh                 ← changelog from git log
+│   ├── git.sh                 ← changelog from git log
+│   ├── ai_output.sh           ← compact markdown helpers
+│   ├── excludes.sh            ← shared generated/noisy excludes
+│   ├── search.sh              ← dx code/file commands
+│   ├── diff.sh                ← dx diff command
+│   ├── analyze.sh             ← dx analyze command
+│   ├── repox.sh               ← dx repox command
+│   ├── context.sh             ← dx context command
+│   ├── ci.sh                  ← dx ci commands
+│   └── guard.sh               ← dx guard commands
+├── ai-workflow/               ← AI workflow docs and command guides
 ├── templates/
 │   └── mr_description_mobile.md      ← MR/PR description template
 ├── install.sh                 ← one-time symlink setup

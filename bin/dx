@@ -20,6 +20,15 @@ source "$LIB_DIR/atlassian.sh"
 source "$LIB_DIR/gitlab.sh"
 source "$LIB_DIR/github.sh"
 source "$LIB_DIR/git.sh"
+source "$LIB_DIR/ai_output.sh"
+source "$LIB_DIR/excludes.sh"
+source "$LIB_DIR/search.sh"
+source "$LIB_DIR/diff.sh"
+source "$LIB_DIR/analyze.sh"
+source "$LIB_DIR/repox.sh"
+source "$LIB_DIR/context.sh"
+source "$LIB_DIR/ci.sh"
+source "$LIB_DIR/guard.sh"
 
 CMD="${1:-help}"
 shift || true
@@ -63,6 +72,29 @@ USAGE
   dx confluence read <URL|PAGE-ID>         Human-readable page
   dx confluence read <URL|PAGE-ID> --ai    Compact for AI
 
+  dx code search <query> --ai              Compact ripgrep search for AI
+  dx code search <query> --path lib --ai   Search selected paths
+  dx file find <query> --ai                Compact fd file finder for AI
+  dx file find <query> --path test --ai    Find files under selected paths
+
+  dx diff --ai                             Compact git diff summary
+  dx diff --base origin/main --ai          Compare against a specific base
+  dx diff --files --ai                     Show changed files only
+
+  dx analyze flutter --ai                  Compact flutter analyze summary
+  dx repox summary --ai                    Summarize available repox outputs
+  dx context <TICKET|URL> --ai             Stateless Jira-centered work context
+  dx context <TICKET|URL> --include-diff --with-repox --ai
+
+  dx ci summary --mr <id> --ai             Summarize GitLab MR CI
+  dx ci summary --pr <id> --ai             Summarize GitHub PR checks
+  dx ci failed-jobs --mr <id> --ai         List failed GitLab CI jobs
+  dx ci failed-jobs --pr <id> --ai         List failed GitHub checks
+  dx ci logs --job <id> --ai               Compact failed log lines
+
+  dx guard pre-mr --ai                     Stateless pre-MR risk checks
+  dx guard pre-commit --ai                 Stateless pre-commit risk checks
+
   dx mr open <TICKET>                   Create GitLab MR from ticket
   dx mr open <TICKET> --draft           Create as Draft
   dx mr open <TICKET> --type <type>     Commit type: feat|fix|chore|... (default: feat)
@@ -87,6 +119,9 @@ EXAMPLES
   dx jira read DE-1234
   dx jira read DE-1234 --ai
   dx confluence read https://yourco.atlassian.net/wiki/spaces/.../pages/12345/...
+  dx code search "Bloc" --ai
+  dx diff --ai
+  dx context DE-1234 --include-diff --with-repox --ai
   dx mr open DE-1234 --draft
   dx pr open DE-1234 --target develop
 HELP
@@ -116,6 +151,44 @@ case "$CMD" in
       read) atlassian_confluence "$@" ;;
       *)    echo "Usage: dx confluence read <URL|PAGE-ID>" >&2; exit 1 ;;
     esac
+    ;;
+
+  code)
+    dx_code_search "$@"
+    ;;
+
+  file)
+    dx_file_find "$@"
+    ;;
+
+  diff)
+    dx_diff "$@"
+    ;;
+
+  analyze)
+    dx_analyze "$@"
+    ;;
+
+  repox)
+    dx_repox "$@"
+    ;;
+
+  context)
+    if [[ -z "${1:-}" || "${1:-}" == --* ]]; then
+      dx_context "$@"
+      exit $?
+    fi
+    config_validate_atlassian
+    _atlassian_init
+    dx_context "$@"
+    ;;
+
+  ci)
+    dx_ci "$@"
+    ;;
+
+  guard)
+    dx_guard "$@"
     ;;
 
   mr)
