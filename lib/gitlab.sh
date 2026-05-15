@@ -27,6 +27,8 @@ _render_mr_template() {
   local jira_url="$1"
   local changelog="$2"
   local template="$_DX_SCRIPT_DIR_GITLAB/templates/mr_description_mobile.md"
+  # Escape newlines in changelog for sed substitution
+  changelog="${changelog//$'\n'/\\n}"
   sed -e "s|{{JIRA_URL}}|${jira_url}|g" \
       -e "s|{{CHANGELOG}}|${changelog}|g" \
       "$template"

@@ -54,6 +54,8 @@ github_pr_open() {
     [[ -f "$body_file" ]] || { echo "Body file not found: $body_file" >&2; return 1; }
     description="$(<"$body_file")"
   else
+    # Escape newlines in changelog for sed substitution
+    changelog="${changelog//$'\n'/\\n}"
     description=$(sed -e "s|{{JIRA_URL}}|${jira_url}|g" \
                       -e "s|{{CHANGELOG}}|${changelog}|g" \
                       "$_DX_SCRIPT_DIR_GITHUB/templates/mr_description_mobile.md")
