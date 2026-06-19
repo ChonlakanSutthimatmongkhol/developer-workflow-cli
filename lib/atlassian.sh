@@ -301,7 +301,7 @@ atlassian_confluence() {
   local auth
   auth="$(_atlassian_auth_header)"
   local json
-  json=$(curl -s -f \
+  json=$(curl -s -f --max-time 30 --connect-timeout 10 \
     -H "$auth" \
     -H "Accept: application/json" \
     "${confluence_base}/rest/api/content/${page_id}?expand=body.storage,space,ancestors,metadata.labels,version")
@@ -489,7 +489,7 @@ PYEOF
   local auth
   auth="$(_atlassian_auth_header)"
   local json
-  json=$(curl -s -f \
+  json=$(curl -s -f --max-time 30 --connect-timeout 10 \
     -H "$auth" \
     -H "Accept: application/json" \
     "${confluence_base}/rest/api/content/search?cql=${encoded}&limit=${limit}&expand=space,version")
