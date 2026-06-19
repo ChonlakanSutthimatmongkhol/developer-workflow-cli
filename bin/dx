@@ -80,7 +80,8 @@ USAGE
   dx jira read <TICKET|URL> --ai       Compact format for AI
   dx jira read <TICKET|URL> --raw      Raw JSON
   dx jira list <PROJECT-KEY>           List open tickets
-  dx jira search "<query>"             JQL or text search
+  dx jira search "<query>"             Text search (default)
+  dx jira search "<query>" --jql       Treat query as raw JQL
   dx jira open <TICKET|URL>            Open in browser
 
   dx confluence read <URL|PAGE-ID>         Human-readable page
@@ -298,3 +299,5 @@ case "$CMD" in
     exit 1
     ;;
 esac
+
+exit 0

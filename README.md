@@ -39,7 +39,11 @@ If `fd` is still not found after install, ensure `/opt/homebrew/bin` is on `PATH
 ## Install
 
 ```bash
+# Install latest main
 curl -fsSL https://raw.githubusercontent.com/ChonlakanSutthimatmongkhol/developer-workflow-cli/main/install.sh | bash
+
+# Install a specific version (Git tag)
+curl -fsSL https://raw.githubusercontent.com/ChonlakanSutthimatmongkhol/developer-workflow-cli/main/install.sh | DX_VERSION=v1.3.0 bash
 ```
 
 Then restart your shell (or `source ~/.zshrc`):
@@ -101,6 +105,16 @@ Get tokens:
 - GitLab: `https://gitlab.yourco.com/-/profile/personal_access_tokens` (scopes: `api`, `read_user`)
 - GitHub: <https://github.com/settings/tokens> (scope: `repo`)
 
+### Optional Jira field overrides
+
+```bash
+# ~/.config/dx/default.env
+JIRA_SPRINT_FIELD=customfield_10020
+JIRA_AC_FIELDS=customfield_10016,customfield_10034,customfield_10035
+```
+
+These vary per Jira instance. Find your IDs at `<JIRA_URL>/rest/api/3/field`.
+
 ### Priority order (highest → lowest)
 
 1. `DX_PROFILE` → `~/.config/dx/profiles/<name>.env` — one-off named profile
@@ -155,7 +169,8 @@ dx jira read <TICKET|URL>            # human-readable
 dx jira read <TICKET|URL> --ai       # compact for AI (saves tokens)
 dx jira read <TICKET|URL> --raw      # raw JSON
 dx jira list <PROJECT-KEY>           # list open tickets
-dx jira search "<query>"             # JQL or text search
+dx jira search "<query>"             # text search (default)
+dx jira search "<query>" --jql       # treat query as raw JQL
 dx jira open <TICKET|URL>            # open in browser
 ```
 
@@ -379,8 +394,22 @@ dx/
 ├── templates/
 │   └── mr_description_mobile.md      ← MR/PR description template
 ├── install.sh                 ← one-time symlink setup
+├── test/
+│   └── smoke.sh               ← minimal smoke tests (no network)
 └── README.md
 ```
+
+---
+
+## Development
+
+### Running tests
+
+```bash
+./test/smoke.sh
+```
+
+No network required. Covers shell syntax, template rendering, and env-file loading.
 
 ---
 

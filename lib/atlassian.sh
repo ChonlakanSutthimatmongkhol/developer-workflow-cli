@@ -6,7 +6,7 @@
 
 # ---------------------------------------------------------------------------
 # Extract ticket ID from URL or plain ID
-# e.g. https://kkps.atlassian.net/browse/DE-1234 → DE-1234
+# e.g. https://yourco.atlassian.net/browse/DE-1234 → DE-1234
 # ---------------------------------------------------------------------------
 _parse_ticket() {
   local input="$1"
@@ -22,17 +22,41 @@ _parse_ticket() {
 # Helpers
 # ---------------------------------------------------------------------------
 _atlassian_init() {
-  JIRA_USER="${JIRA_USERNAME:-${ATLASSIAN_USER:-}}"
-  JIRA_API_BASE="${JIRA_URL}/rest/api/3"
-  AUTH_HEADER="Authorization: Basic $(echo -n "${JIRA_USER}:${JIRA_API_TOKEN}" | base64)"
+  : "${JIRA_USERNAME:?JIRA_USERNAME required}"
+  : "${JIRA_API_TOKEN:?JIRA_API_TOKEN required}"
+  : "${JIRA_URL:?JIRA_URL required}"
+  # Intentionally do NOT export. Use _jira_get / _atlassian_auth_header.
+}
+
+_atlassian_auth_header() {
+  local user="${JIRA_USERNAME:-${ATLASSIAN_USER:-}}"
+  printf 'Authorization: Basic %s' "$(printf '%s' "${user}:${JIRA_API_TOKEN}" | base64)"
 }
 
 _jira_get() {
   local path="$1"
-  curl -s -f \
-    -H "$AUTH_HEADER" \
+  local auth
+  auth="$(_atlassian_auth_header)"
+  curl -s -f --max-time 30 --connect-timeout 10 \
+    -H "$auth" \
     -H "Accept: application/json" \
-    "${JIRA_API_BASE}${path}"
+    "${JIRA_URL}/rest/api/3${path}"
+}
+
+# Returns: SUMMARY\nURL\n
+_atlassian_ticket_summary_url() {
+  local ticket="$1"
+  local json
+  json=$(_jira_get "/issue/${ticket}?fields=summary")
+  DX_JSON="$json" python3 - "$JIRA_URL" "$ticket" <<'PYEOF'
+import json, os, sys
+data = json.loads(os.environ["DX_JSON"])
+summary = (data.get("fields", {}) or {}).get("summary", "")
+base    = sys.argv[1].rstrip("/")
+ticket  = sys.argv[2]
+print(summary)
+print(f"{base}/browse/{ticket}")
+PYEOF
 }
 
 # ---------------------------------------------------------------------------
@@ -58,13 +82,15 @@ atlassian_read() {
     return
   fi
 
-  python3 - "$json" "$JIRA_URL" "$ticket" "$ai" <<'PYEOF'
-import sys, json
+  local sprint_field="${JIRA_SPRINT_FIELD:-customfield_10020}"
+  local ac_fields="${JIRA_AC_FIELDS:-customfield_10016,customfield_10034,customfield_10035}"
+  DX_JSON="$json" python3 - "$JIRA_URL" "$ticket" "$ai" "$sprint_field" "$ac_fields" <<'PYEOF'
+import os, sys, json
 
-data     = json.loads(sys.argv[1])
-base_url = sys.argv[2]
-ticket   = sys.argv[3]
-ai_mode  = sys.argv[4] == "true"
+data     = json.loads(os.environ["DX_JSON"])
+base_url = sys.argv[1]
+ticket   = sys.argv[2]
+ai_mode  = sys.argv[3] == "true"
 fields   = data.get("fields", {})
 
 def adf_to_md(node):
@@ -113,7 +139,8 @@ reporter    = (fields.get("reporter") or {}).get("displayName", "-")
 labels      = fields.get("labels", [])
 components  = [c["name"] for c in fields.get("components", [])]
 sprint_info = ""
-sprint_field = fields.get("customfield_10020") or []
+sprint_field_id = sys.argv[4]
+sprint_field = fields.get(sprint_field_id) or []
 if sprint_field:
     active = [s for s in sprint_field if s.get("state") == "active"]
     sprint_info = (active or sprint_field)[-1].get("name", "")
@@ -121,12 +148,12 @@ if sprint_field:
 description_adf = fields.get("description")
 description_md  = adf_to_md(description_adf) if description_adf else "_No description_"
 
-ac_adf = (
-    fields.get("customfield_10016") or
-    fields.get("customfield_10034") or
-    fields.get("customfield_10035") or
-    None
-)
+ac_field_ids = [s.strip() for s in sys.argv[5].split(",") if s.strip()]
+ac_adf = None
+for fid in ac_field_ids:
+    ac_adf = fields.get(fid)
+    if ac_adf:
+        break
 ac_md = adf_to_md(ac_adf) if ac_adf else ""
 
 url = f"{base_url}/browse/{ticket}"
@@ -207,9 +234,9 @@ atlassian_list() {
   local json
   json=$(_jira_get "/search/jql?jql=${encoded}&maxResults=30&fields=summary,status,priority,assignee,issuetype")
 
-  python3 - "$json" <<'PYEOF'
-import sys, json
-data   = json.loads(sys.argv[1])
+  DX_JSON="$json" python3 - <<'PYEOF'
+import os, json
+data   = json.loads(os.environ["DX_JSON"])
 issues = data.get("issues", [])
 total  = data.get("total", 0)
 print(f"{'KEY':<15} {'TYPE':<12} {'STATUS':<20} {'PRIORITY':<10} {'SUMMARY'}")
@@ -227,21 +254,41 @@ PYEOF
 }
 
 atlassian_search() {
-  local query="${1:?Usage: dx jira search \"JQL or text\"}"
+  local query=""
+  local mode="text"   # text|jql
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --jql) mode="jql" ;;
+      --text) mode="text" ;;
+      --help|-h)
+        echo "Usage: dx jira search <query> [--text|--jql]"
+        return 0
+        ;;
+      *)
+        if [[ -z "$query" ]]; then query="$1"; else query="$query $1"; fi
+        ;;
+    esac
+    shift
+  done
+  [[ -n "$query" ]] || { echo "Usage: dx jira search <query> [--text|--jql]" >&2; return 1; }
+
   local jql
-  if [[ "$query" != *" = "* && "$query" != *" AND "* && "$query" != *" OR "* ]]; then
-    jql="text ~ \"${query}\" ORDER BY updated DESC"
-  else
+  if [[ "$mode" == "jql" ]]; then
     jql="$query"
+  else
+    # Escape embedded quotes for safe text search
+    local safe="${query//\"/\\\"}"
+    jql="text ~ \"${safe}\" ORDER BY updated DESC"
   fi
+
   local encoded
   encoded=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$jql")
   local json
   json=$(_jira_get "/search/jql?jql=${encoded}&maxResults=20&fields=summary,status,issuetype,project")
 
-  python3 - "$json" <<'PYEOF'
-import sys, json
-data   = json.loads(sys.argv[1])
+  DX_JSON="$json" python3 - <<'PYEOF'
+import json, os
+data = json.loads(os.environ["DX_JSON"])
 issues = data.get("issues", [])
 print(f"{'KEY':<15} {'TYPE':<12} {'STATUS':<20} {'SUMMARY'}")
 print("-" * 80)
@@ -287,25 +334,28 @@ atlassian_confluence() {
   : "${page_id:?Cannot extract page ID from: $input}"
 
   local confluence_base="${CONFLUENCE_URL:-${JIRA_URL}/wiki}"
+  local auth
+  auth="$(_atlassian_auth_header)"
   local json
-  json=$(curl -s -f \
-    -H "$AUTH_HEADER" \
+  json=$(curl -s -f --max-time 30 --connect-timeout 10 \
+    -H "$auth" \
     -H "Accept: application/json" \
     "${confluence_base}/rest/api/content/${page_id}?expand=body.storage,space,ancestors,metadata.labels,version")
 
-  python3 - "$json" "$input" "$ai" <<'PYEOF'
-import sys, json, re
+  DX_JSON="$json" python3 - "$input" "$ai" "$confluence_base" <<'PYEOF'
+import os, sys, json, re
 
-data      = json.loads(sys.argv[1])
-input_url = sys.argv[2]
-ai_mode   = sys.argv[3] == "true"
+data      = json.loads(os.environ["DX_JSON"])
+input_url = sys.argv[1]
+ai_mode   = sys.argv[2] == "true"
+base_url  = sys.argv[3].rstrip("/")
 page_id   = data.get("id", "")
 title     = data.get("title", "")
 space     = data.get("space", {}).get("name", "")
 version   = data.get("version", {}).get("number", "")
 labels    = [l["name"] for l in data.get("metadata", {}).get("labels", {}).get("results", [])]
 ancestors = [a["title"] for a in data.get("ancestors", [])]
-url = input_url if input_url.startswith("http") else f"https://kkps.atlassian.net/wiki/pages/{page_id}"
+url = input_url if input_url.startswith("http") else f"{base_url}/pages/{page_id}"
 
 html = data.get("body", {}).get("storage", {}).get("value", "")
 
@@ -447,7 +497,7 @@ atlassian_confluence_search() {
       *)
         echo "Unknown option: $1" >&2
         echo "Usage: dx confluence search \"query\" [--limit N] [--ai]" >&2
-        exit 1
+        return 1
         ;;
     esac
     shift
@@ -456,7 +506,7 @@ atlassian_confluence_search() {
   if ! [[ "$limit" =~ ^[0-9]+$ ]] || [[ "$limit" -lt 1 ]]; then
     echo "Usage: dx confluence search \"query\" [--limit N] [--ai]" >&2
     echo "--limit must be a positive integer" >&2
-    exit 1
+    return 1
   fi
 
   local confluence_base="${CONFLUENCE_URL:-${JIRA_URL}/wiki}"
@@ -472,19 +522,21 @@ PYEOF
   local encoded
   encoded=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$cql")
 
+  local auth
+  auth="$(_atlassian_auth_header)"
   local json
-  json=$(curl -s -f \
-    -H "$AUTH_HEADER" \
+  json=$(curl -s -f --max-time 30 --connect-timeout 10 \
+    -H "$auth" \
     -H "Accept: application/json" \
     "${confluence_base}/rest/api/content/search?cql=${encoded}&limit=${limit}&expand=space,version")
 
-  python3 - "$json" "$query" "$confluence_base" "$ai" <<'PYEOF'
-import sys, json, re
+  DX_JSON="$json" python3 - "$query" "$confluence_base" "$ai" <<'PYEOF'
+import os, sys, json, re
 
-data = json.loads(sys.argv[1])
-query = sys.argv[2]
-base = (data.get("_links", {}).get("base") or sys.argv[3]).rstrip("/")
-ai_mode = sys.argv[4] == "true"
+data = json.loads(os.environ["DX_JSON"])
+query = sys.argv[1]
+base = (data.get("_links", {}).get("base") or sys.argv[2]).rstrip("/")
+ai_mode = sys.argv[3] == "true"
 results = data.get("results", [])
 
 def strip_tags(value):
@@ -534,7 +586,7 @@ PYEOF
 
 atlassian_whoami() {
   echo "JIRA_URL : ${JIRA_URL}"
-  echo "USER     : ${JIRA_USER}"
+  echo "USER     : ${JIRA_USERNAME}"
   echo "TOKEN    : ${JIRA_API_TOKEN:0:10}..."
   echo ""
   local json
