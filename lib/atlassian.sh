@@ -60,13 +60,13 @@ atlassian_read() {
 
   local sprint_field="${JIRA_SPRINT_FIELD:-customfield_10020}"
   local ac_fields="${JIRA_AC_FIELDS:-customfield_10016,customfield_10034,customfield_10035}"
-  python3 - "$json" "$JIRA_URL" "$ticket" "$ai" "$sprint_field" "$ac_fields" <<'PYEOF'
-import sys, json
+  DX_JSON="$json" python3 - "$JIRA_URL" "$ticket" "$ai" "$sprint_field" "$ac_fields" <<'PYEOF'
+import os, sys, json
 
-data     = json.loads(sys.argv[1])
-base_url = sys.argv[2]
-ticket   = sys.argv[3]
-ai_mode  = sys.argv[4] == "true"
+data     = json.loads(os.environ["DX_JSON"])
+base_url = sys.argv[1]
+ticket   = sys.argv[2]
+ai_mode  = sys.argv[3] == "true"
 fields   = data.get("fields", {})
 
 def adf_to_md(node):
@@ -115,7 +115,7 @@ reporter    = (fields.get("reporter") or {}).get("displayName", "-")
 labels      = fields.get("labels", [])
 components  = [c["name"] for c in fields.get("components", [])]
 sprint_info = ""
-sprint_field_id = sys.argv[5]
+sprint_field_id = sys.argv[4]
 sprint_field = fields.get(sprint_field_id) or []
 if sprint_field:
     active = [s for s in sprint_field if s.get("state") == "active"]
@@ -124,7 +124,7 @@ if sprint_field:
 description_adf = fields.get("description")
 description_md  = adf_to_md(description_adf) if description_adf else "_No description_"
 
-ac_field_ids = [s.strip() for s in sys.argv[6].split(",") if s.strip()]
+ac_field_ids = [s.strip() for s in sys.argv[5].split(",") if s.strip()]
 ac_adf = None
 for fid in ac_field_ids:
     ac_adf = fields.get(fid)
@@ -210,9 +210,9 @@ atlassian_list() {
   local json
   json=$(_jira_get "/search/jql?jql=${encoded}&maxResults=30&fields=summary,status,priority,assignee,issuetype")
 
-  python3 - "$json" <<'PYEOF'
-import sys, json
-data   = json.loads(sys.argv[1])
+  DX_JSON="$json" python3 - <<'PYEOF'
+import os, json
+data   = json.loads(os.environ["DX_JSON"])
 issues = data.get("issues", [])
 total  = data.get("total", 0)
 print(f"{'KEY':<15} {'TYPE':<12} {'STATUS':<20} {'PRIORITY':<10} {'SUMMARY'}")
@@ -242,9 +242,9 @@ atlassian_search() {
   local json
   json=$(_jira_get "/search/jql?jql=${encoded}&maxResults=20&fields=summary,status,issuetype,project")
 
-  python3 - "$json" <<'PYEOF'
-import sys, json
-data   = json.loads(sys.argv[1])
+  DX_JSON="$json" python3 - <<'PYEOF'
+import os, json
+data   = json.loads(os.environ["DX_JSON"])
 issues = data.get("issues", [])
 print(f"{'KEY':<15} {'TYPE':<12} {'STATUS':<20} {'SUMMARY'}")
 print("-" * 80)
@@ -296,13 +296,13 @@ atlassian_confluence() {
     -H "Accept: application/json" \
     "${confluence_base}/rest/api/content/${page_id}?expand=body.storage,space,ancestors,metadata.labels,version")
 
-  python3 - "$json" "$input" "$ai" "$confluence_base" <<'PYEOF'
-import sys, json, re
+  DX_JSON="$json" python3 - "$input" "$ai" "$confluence_base" <<'PYEOF'
+import os, sys, json, re
 
-data      = json.loads(sys.argv[1])
-input_url = sys.argv[2]
-ai_mode   = sys.argv[3] == "true"
-base_url  = sys.argv[4].rstrip("/")
+data      = json.loads(os.environ["DX_JSON"])
+input_url = sys.argv[1]
+ai_mode   = sys.argv[2] == "true"
+base_url  = sys.argv[3].rstrip("/")
 page_id   = data.get("id", "")
 title     = data.get("title", "")
 space     = data.get("space", {}).get("name", "")
@@ -482,13 +482,13 @@ PYEOF
     -H "Accept: application/json" \
     "${confluence_base}/rest/api/content/search?cql=${encoded}&limit=${limit}&expand=space,version")
 
-  python3 - "$json" "$query" "$confluence_base" "$ai" <<'PYEOF'
-import sys, json, re
+  DX_JSON="$json" python3 - "$query" "$confluence_base" "$ai" <<'PYEOF'
+import os, sys, json, re
 
-data = json.loads(sys.argv[1])
-query = sys.argv[2]
-base = (data.get("_links", {}).get("base") or sys.argv[3]).rstrip("/")
-ai_mode = sys.argv[4] == "true"
+data = json.loads(os.environ["DX_JSON"])
+query = sys.argv[1]
+base = (data.get("_links", {}).get("base") or sys.argv[2]).rstrip("/")
+ai_mode = sys.argv[3] == "true"
 results = data.get("results", [])
 
 def strip_tags(value):
