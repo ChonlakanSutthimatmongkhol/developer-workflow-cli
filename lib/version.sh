@@ -2,7 +2,7 @@
 # lib/version.sh - version and update check commands
 # =============================================================================
 
-DX_VERSION="${DX_VERSION:-v1.4.3}"
+DX_VERSION="${DX_VERSION:-v1.5.0}"
 
 dx_version() {
   printf 'dx version: %s\n' "$DX_VERSION"
