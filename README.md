@@ -258,6 +258,7 @@ dx mr open <TICKET> --draft              # create as Draft
 dx mr open <TICKET> --target <branch>    # override target branch (default: main)
 dx mr open <TICKET> --changelog "..."    # override changelog
 dx mr open <TICKET> --body-file <path>   # use an AI-generated MR body markdown file
+dx mr open <TICKET> --template <name>    # use a named MR template
 dx mr open <TICKET> --yes                # skip repo/profile confirmation prompt
 dx mr body <TICKET> --include-diff --output /tmp/mr.md
 dx mr list                               # list open MRs assigned to me
@@ -278,6 +279,7 @@ dx pr open <TICKET> --draft              # create as Draft
 dx pr open <TICKET> --target <branch>    # override target branch (default: main)
 dx pr open <TICKET> --changelog "..."    # override changelog
 dx pr open <TICKET> --body-file <path>   # use an AI-generated PR body markdown file
+dx pr open <TICKET> --template <name>    # use a named PR template
 dx pr open <TICKET> --yes                # skip repo/profile confirmation prompt
 dx pr body <TICKET> --include-diff --output /tmp/pr.md
 dx pr list                               # list open PRs assigned to me
@@ -312,6 +314,22 @@ dx update --check --ai
 ## MR/PR Description Template
 
 Located at `templates/mr_description_mobile.md`. Edit to match your team's format.
+
+### Templates
+
+`dx mr open` and `dx pr open` use `mr_description_mobile` by default. Pass `--template <name>` to select another template:
+
+```bash
+dx mr open DE-1234 --template release_note
+dx pr open DE-1234 --template release_note
+```
+
+Template resolution order is:
+1. Explicit file path
+2. `.dx/templates/<name>.md` in the current repo
+3. Bundled `templates/<name>.md`
+
+Templates can use `{{JIRA_URL}}` and `{{CHANGELOG}}` placeholders. To add a repo-local template, create `.dx/templates/<name>.md`, then run `dx mr open DE-1234 --template <name>`. Set `DX_TEMPLATE_DIR` to override the bundled template directory.
 
 ```markdown
 ## JIRA Ticket ##

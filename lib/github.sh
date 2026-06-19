@@ -18,6 +18,7 @@ github_pr_open() {
   local changelog_override=""
   local commit_type="feat"
   local body_file=""
+  local template_name="mr_description_mobile"
   local yes=false
 
   while [[ $# -gt 0 ]]; do
@@ -27,6 +28,7 @@ github_pr_open() {
       --changelog) changelog_override="${2:?--changelog requires a value}"; shift ;;
       --type)      commit_type="${2:?--type requires a value (feat|fix|chore|...)}"; shift ;;
       --body-file) body_file="${2:?--body-file requires a path}"; shift ;;
+      --template)  template_name="${2:?--template requires a name}"; shift ;;
       --yes|-y)    yes=true ;;
       *)           echo "Unknown option: $1" >&2; exit 1 ;;
     esac
@@ -54,11 +56,12 @@ github_pr_open() {
     [[ -f "$body_file" ]] || { echo "Body file not found: $body_file" >&2; return 1; }
     description="$(<"$body_file")"
   else
-    # Escape newlines in changelog for sed substitution
-    changelog="${changelog//$'\n'/\\n}"
-    description=$(sed -e "s|{{JIRA_URL}}|${jira_url}|g" \
-                      -e "s|{{CHANGELOG}}|${changelog}|g" \
-                      "$_DX_SCRIPT_DIR_GITHUB/templates/mr_description_mobile.md")
+    local template
+    template="$(dx_template_resolve "$template_name")" || {
+      echo "Template not found: $template_name (looked in .dx/templates and bundled templates/)" >&2
+      return 1
+    }
+    description=$(dx_template_render "$template" "JIRA_URL=$jira_url" "CHANGELOG=$changelog")
   fi
 
   # Build gh command

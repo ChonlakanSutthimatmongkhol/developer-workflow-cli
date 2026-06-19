@@ -28,8 +28,7 @@ dx_repox_summary() {
 
   local files=(
     ".repox/conventions.json"
-    ".repox/maps/project.md"
-    ".repox/maps/conventions.md"
+    ".repox/examples.json"
     ".repox/skill/SKILL.md"
   )
 
@@ -52,6 +51,17 @@ dx_repox_summary() {
     sed -n '1,80p' "$f"
   done
 
+  ai_section "Warnings"
+  if [[ -f ".repox/conventions.json" ]]; then
+    local ptype
+    ptype="$(python3 -c 'import json,sys; print(json.load(open(".repox/conventions.json")).get("project_type",""))' 2>/dev/null || echo "")"
+    if [[ -z "$ptype" || "$ptype" == "unknown" ]]; then
+      ai_warning "repox conventions report project_type='${ptype:-<empty>}'. Re-run 'repox scan --ai'; the scan may not support this project type yet."
+    fi
+  else
+    ai_warning "No .repox/conventions.json found. Run 'repox scan --ai' first."
+  fi
+
   if ! $found; then
     ai_section "Suggested Next Commands"
     ai_suggest "repox setup"
@@ -63,4 +73,3 @@ dx_repox_summary() {
     ai_suggest "repox explain --ai"
   fi
 }
-

@@ -20,6 +20,8 @@ source "$LIB_DIR/atlassian.sh"
 source "$LIB_DIR/gitlab.sh"
 source "$LIB_DIR/github.sh"
 source "$LIB_DIR/git.sh"
+source "$LIB_DIR/template.sh"
+source "$LIB_DIR/template_cmd.sh"
 source "$LIB_DIR/ai_output.sh"
 source "$LIB_DIR/excludes.sh"
 source "$LIB_DIR/budget.sh"
@@ -103,6 +105,8 @@ USAGE
   dx scan security --severity CRITICAL,HIGH --ai
   dx scan security --scanners vuln,secret,misconfig --ai
   dx repox summary --ai                    Summarize available repox outputs
+  dx template list                         List available MR/PR templates
+  dx template path <name>                  Print the resolved template file path
   dx context <TICKET|URL> --ai             Stateless Jira-centered work context
   dx context <TICKET|URL> --include-diff --ai --b f
   dx context <TICKET|URL> --with-repox --ai Optional Repox context
@@ -119,6 +123,7 @@ USAGE
   dx mr open <TICKET> --target <branch> Override target branch
   dx mr open <TICKET> --changelog "..."  Override changelog
   dx mr open <TICKET> --body-file <path> Use an AI-generated MR body markdown file
+  dx mr open <TICKET> --template <name>  Use a named MR template (default: mr_description_mobile)
   dx mr open <TICKET> --yes             Skip repo/profile confirmation prompt
   dx mr body <TICKET> --include-diff     Generate MR body markdown without opening MR
   dx mr list                             List open MRs assigned to me
@@ -130,6 +135,7 @@ USAGE
   dx pr open <TICKET> --target <branch> Override target branch
   dx pr open <TICKET> --changelog "..."  Override changelog
   dx pr open <TICKET> --body-file <path> Use an AI-generated PR body markdown file
+  dx pr open <TICKET> --template <name>  Use a named PR template (default: mr_description_mobile)
   dx pr open <TICKET> --yes             Skip repo/profile confirmation prompt
   dx pr body <TICKET> --include-diff     Generate PR body markdown without opening PR
   dx pr list                             List open PRs assigned to me
@@ -198,6 +204,10 @@ case "$CMD" in
 
   repox)
     dx_repox "$@"
+    ;;
+
+  template)
+    dx_template "$@"
     ;;
 
   context)
