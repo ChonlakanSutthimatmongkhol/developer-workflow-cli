@@ -22,17 +22,25 @@ _parse_ticket() {
 # Helpers
 # ---------------------------------------------------------------------------
 _atlassian_init() {
-  JIRA_USER="${JIRA_USERNAME:-${ATLASSIAN_USER:-}}"
-  JIRA_API_BASE="${JIRA_URL}/rest/api/3"
-  AUTH_HEADER="Authorization: Basic $(echo -n "${JIRA_USER}:${JIRA_API_TOKEN}" | base64)"
+  : "${JIRA_USERNAME:?JIRA_USERNAME required}"
+  : "${JIRA_API_TOKEN:?JIRA_API_TOKEN required}"
+  : "${JIRA_URL:?JIRA_URL required}"
+  # Intentionally do NOT export. Use _jira_get / _atlassian_auth_header.
+}
+
+_atlassian_auth_header() {
+  local user="${JIRA_USERNAME:-${ATLASSIAN_USER:-}}"
+  printf 'Authorization: Basic %s' "$(printf '%s' "${user}:${JIRA_API_TOKEN}" | base64)"
 }
 
 _jira_get() {
   local path="$1"
-  curl -s -f \
-    -H "$AUTH_HEADER" \
+  local auth
+  auth="$(_atlassian_auth_header)"
+  curl -s -f --max-time 30 --connect-timeout 10 \
+    -H "$auth" \
     -H "Accept: application/json" \
-    "${JIRA_API_BASE}${path}"
+    "${JIRA_URL}/rest/api/3${path}"
 }
 
 # ---------------------------------------------------------------------------
@@ -290,9 +298,11 @@ atlassian_confluence() {
   : "${page_id:?Cannot extract page ID from: $input}"
 
   local confluence_base="${CONFLUENCE_URL:-${JIRA_URL}/wiki}"
+  local auth
+  auth="$(_atlassian_auth_header)"
   local json
   json=$(curl -s -f \
-    -H "$AUTH_HEADER" \
+    -H "$auth" \
     -H "Accept: application/json" \
     "${confluence_base}/rest/api/content/${page_id}?expand=body.storage,space,ancestors,metadata.labels,version")
 
@@ -476,9 +486,11 @@ PYEOF
   local encoded
   encoded=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$cql")
 
+  local auth
+  auth="$(_atlassian_auth_header)"
   local json
   json=$(curl -s -f \
-    -H "$AUTH_HEADER" \
+    -H "$auth" \
     -H "Accept: application/json" \
     "${confluence_base}/rest/api/content/search?cql=${encoded}&limit=${limit}&expand=space,version")
 
@@ -538,7 +550,7 @@ PYEOF
 
 atlassian_whoami() {
   echo "JIRA_URL : ${JIRA_URL}"
-  echo "USER     : ${JIRA_USER}"
+  echo "USER     : ${JIRA_USERNAME}"
   echo "TOKEN    : ${JIRA_API_TOKEN:0:10}..."
   echo ""
   local json
