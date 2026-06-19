@@ -8,10 +8,24 @@
 _load_env_file() {
   local f="$1"
   [[ -f "$f" ]] || return 0
+  local line key val
   while IFS= read -r line || [[ -n "$line" ]]; do
-    if [[ "$line" =~ ^[A-Z_][A-Z0-9_]*=.+ ]]; then
-      export "$line"
+    # Skip comments and blank lines
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+    [[ -z "${line//[[:space:]]/}" ]] && continue
+    # Strip optional leading "export "
+    line="${line#export }"
+    # Must look like KEY=VALUE
+    [[ "$line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] || continue
+    key="${line%%=*}"
+    val="${line#*=}"
+    # Strip a matching pair of surrounding quotes (single or double)
+    if [[ "${val:0:1}" == '"' && "${val: -1}" == '"' ]]; then
+      val="${val:1:${#val}-2}"
+    elif [[ "${val:0:1}" == "'" && "${val: -1}" == "'" ]]; then
+      val="${val:1:${#val}-2}"
     fi
+    export "$key=$val"
   done < "$f"
 }
 
