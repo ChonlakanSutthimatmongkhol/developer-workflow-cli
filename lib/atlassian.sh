@@ -58,7 +58,9 @@ atlassian_read() {
     return
   fi
 
-  python3 - "$json" "$JIRA_URL" "$ticket" "$ai" <<'PYEOF'
+  local sprint_field="${JIRA_SPRINT_FIELD:-customfield_10020}"
+  local ac_fields="${JIRA_AC_FIELDS:-customfield_10016,customfield_10034,customfield_10035}"
+  python3 - "$json" "$JIRA_URL" "$ticket" "$ai" "$sprint_field" "$ac_fields" <<'PYEOF'
 import sys, json
 
 data     = json.loads(sys.argv[1])
@@ -113,7 +115,8 @@ reporter    = (fields.get("reporter") or {}).get("displayName", "-")
 labels      = fields.get("labels", [])
 components  = [c["name"] for c in fields.get("components", [])]
 sprint_info = ""
-sprint_field = fields.get("customfield_10020") or []
+sprint_field_id = sys.argv[5]
+sprint_field = fields.get(sprint_field_id) or []
 if sprint_field:
     active = [s for s in sprint_field if s.get("state") == "active"]
     sprint_info = (active or sprint_field)[-1].get("name", "")
@@ -121,12 +124,12 @@ if sprint_field:
 description_adf = fields.get("description")
 description_md  = adf_to_md(description_adf) if description_adf else "_No description_"
 
-ac_adf = (
-    fields.get("customfield_10016") or
-    fields.get("customfield_10034") or
-    fields.get("customfield_10035") or
-    None
-)
+ac_field_ids = [s.strip() for s in sys.argv[6].split(",") if s.strip()]
+ac_adf = None
+for fid in ac_field_ids:
+    ac_adf = fields.get(fid)
+    if ac_adf:
+        break
 ac_md = adf_to_md(ac_adf) if ac_adf else ""
 
 url = f"{base_url}/browse/{ticket}"

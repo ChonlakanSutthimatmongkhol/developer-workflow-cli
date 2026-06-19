@@ -101,6 +101,16 @@ Get tokens:
 - GitLab: `https://gitlab.yourco.com/-/profile/personal_access_tokens` (scopes: `api`, `read_user`)
 - GitHub: <https://github.com/settings/tokens> (scope: `repo`)
 
+### Optional Jira field overrides
+
+```bash
+# ~/.config/dx/default.env
+JIRA_SPRINT_FIELD=customfield_10020
+JIRA_AC_FIELDS=customfield_10016,customfield_10034,customfield_10035
+```
+
+These vary per Jira instance. Find your IDs at `<JIRA_URL>/rest/api/3/field`.
+
 ### Priority order (highest → lowest)
 
 1. `DX_PROFILE` → `~/.config/dx/profiles/<name>.env` — one-off named profile
