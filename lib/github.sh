@@ -3,8 +3,6 @@
 # Assumes GITHUB_TOKEN is already exported by lib/config.sh
 # =============================================================================
 
-_DX_SCRIPT_DIR_GITHUB="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-
 # ---------------------------------------------------------------------------
 # github_pr_open — create PR from a Jira ticket
 # Usage: github_pr_open <TICKET> [--draft] [--target <branch>] [--changelog "..."] [--body-file <path>] [--yes]

@@ -3,8 +3,6 @@
 # Assumes GITLAB_HOST and GITLAB_TOKEN are already exported by lib/config.sh
 # =============================================================================
 
-_DX_SCRIPT_DIR_GITLAB="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-
 # Run glab against the configured GitLab instance (host + token)
 _dx_glab() {
   GITLAB_HOST="${GITLAB_HOST:-}" GITLAB_TOKEN="${GITLAB_TOKEN:-}" glab "$@"
