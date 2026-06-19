@@ -5,6 +5,11 @@
 
 _DX_SCRIPT_DIR_GITLAB="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# Run glab against the configured GitLab instance (host + token)
+_dx_glab() {
+  GITLAB_HOST="${GITLAB_HOST:-}" GITLAB_TOKEN="${GITLAB_TOKEN:-}" glab "$@"
+}
+
 # Extract Jira ticket URL from atlassian_read --ai output
 _jira_ticket_url() {
   local output="$1"
@@ -93,7 +98,7 @@ gitlab_mr_open() {
   local glab_args=(glab mr create --title "$mr_title" --description "$description" --assignee @me --target-branch "$target_branch" --yes)
   $draft && glab_args+=(--draft)
 
-  GITLAB_TOKEN="$GITLAB_TOKEN" "${glab_args[@]}"
+  GITLAB_HOST="$GITLAB_HOST" GITLAB_TOKEN="$GITLAB_TOKEN" "${glab_args[@]}"
 
   echo ""
   echo "✅ MR created!"
@@ -105,7 +110,7 @@ gitlab_mr_open() {
 # gitlab_mr_list — list open MRs assigned to me
 # ---------------------------------------------------------------------------
 gitlab_mr_list() {
-  glab mr list --assignee @me
+  _dx_glab mr list --assignee @me
 }
 
 # ---------------------------------------------------------------------------
@@ -113,5 +118,5 @@ gitlab_mr_list() {
 # ---------------------------------------------------------------------------
 gitlab_mr_view() {
   local mr_id="${1:?Usage: dx mr view <MR-ID>}"
-  glab mr view "$mr_id" -w
+  _dx_glab mr view "$mr_id" -w
 }
