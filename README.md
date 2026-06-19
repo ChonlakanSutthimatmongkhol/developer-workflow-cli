@@ -394,8 +394,22 @@ dx/
 ├── templates/
 │   └── mr_description_mobile.md      ← MR/PR description template
 ├── install.sh                 ← one-time symlink setup
+├── test/
+│   └── smoke.sh               ← minimal smoke tests (no network)
 └── README.md
 ```
+
+---
+
+## Development
+
+### Running tests
+
+```bash
+./test/smoke.sh
+```
+
+No network required. Covers shell syntax, template rendering, and env-file loading.
 
 ---
 
