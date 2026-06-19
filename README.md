@@ -39,7 +39,11 @@ If `fd` is still not found after install, ensure `/opt/homebrew/bin` is on `PATH
 ## Install
 
 ```bash
+# Install latest main
 curl -fsSL https://raw.githubusercontent.com/ChonlakanSutthimatmongkhol/developer-workflow-cli/main/install.sh | bash
+
+# Install a specific version (Git tag)
+curl -fsSL https://raw.githubusercontent.com/ChonlakanSutthimatmongkhol/developer-workflow-cli/main/install.sh | DX_VERSION=v1.3.0 bash
 ```
 
 Then restart your shell (or `source ~/.zshrc`):

@@ -14,6 +14,7 @@ REPO="ChonlakanSutthimatmongkhol/developer-workflow-cli"
 INSTALL_DIR="$HOME/.local/share/dx"
 BIN_DIR="$HOME/.local/bin"
 ZSHRC="$HOME/.zshrc"
+DX_VERSION="${DX_VERSION:-main}"
 
 # Detect whether we're running from inside the repo or standalone via curl.
 # When invoked as `curl ... | bash`, BASH_SOURCE[0] can be unset under `set -u`.
@@ -28,8 +29,13 @@ if [[ -f "$SCRIPT_DIR/bin/dx" ]]; then
 else
   TMP_DIR="$(mktemp -d)"
   trap 'rm -rf "$TMP_DIR"' EXIT
-  echo "⬇️  Downloading dx..."
-  curl -fsSL "https://github.com/$REPO/archive/refs/heads/main.tar.gz" \
+  if [[ "$DX_VERSION" == "main" || "$DX_VERSION" == "master" ]]; then
+    DOWNLOAD_URL="https://github.com/$REPO/archive/refs/heads/${DX_VERSION}.tar.gz"
+  else
+    DOWNLOAD_URL="https://github.com/$REPO/archive/refs/tags/${DX_VERSION}.tar.gz"
+  fi
+  echo "⬇️  Downloading dx ($DX_VERSION)..."
+  curl -fsSL "$DOWNLOAD_URL" \
     | tar -xz -C "$TMP_DIR" --strip-components=1
   SRC_DIR="$TMP_DIR"
 fi
