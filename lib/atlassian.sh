@@ -497,7 +497,7 @@ atlassian_confluence_search() {
       *)
         echo "Unknown option: $1" >&2
         echo "Usage: dx confluence search \"query\" [--limit N] [--ai]" >&2
-        exit 1
+        return 1
         ;;
     esac
     shift
@@ -506,7 +506,7 @@ atlassian_confluence_search() {
   if ! [[ "$limit" =~ ^[0-9]+$ ]] || [[ "$limit" -lt 1 ]]; then
     echo "Usage: dx confluence search \"query\" [--limit N] [--ai]" >&2
     echo "--limit must be a positive integer" >&2
-    exit 1
+    return 1
   fi
 
   local confluence_base="${CONFLUENCE_URL:-${JIRA_URL}/wiki}"

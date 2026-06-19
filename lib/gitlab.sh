@@ -56,7 +56,7 @@ gitlab_mr_open() {
       --body-file) body_file="${2:?--body-file requires a path}"; shift ;;
       --template)  template_name="${2:?--template requires a name}"; shift ;;
       --yes|-y)    yes=true ;;
-      *)           echo "Unknown option: $1" >&2; exit 1 ;;
+      *)           echo "Unknown option: $1" >&2; return 1 ;;
     esac
     shift
   done

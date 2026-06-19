@@ -87,7 +87,7 @@ config_load() {
   if [[ -n "$profile_name" ]]; then
     if ! _validate_profile_name "$profile_name"; then
       [[ "${DX_ALLOW_MISSING_PROFILE:-}" == "1" ]] && return 0
-      exit 1
+      return 1
     fi
     export DX_PROFILE="$profile_name"
     export _DX_PROFILE_SOURCE="$profile_source"
@@ -99,7 +99,7 @@ config_load() {
         return 0
       fi
       echo "❌ Profile not found: $profile_file" >&2
-      exit 1
+      return 1
     fi
     _load_env_file "$profile_file"
   fi
@@ -116,7 +116,7 @@ config_validate_atlassian() {
   if [[ ${#missing[@]} -gt 0 ]]; then
     echo "❌ Atlassian not configured (missing: ${missing[*]})." >&2
     echo "👉 Run: dx auth login" >&2
-    exit 1
+    return 1
   fi
 }
 
@@ -127,7 +127,7 @@ config_validate_gitlab() {
   if [[ ${#missing[@]} -gt 0 ]]; then
     echo "❌ GitLab not configured (missing: ${missing[*]})." >&2
     echo "👉 Add GITLAB_HOST and GITLAB_TOKEN to ~/.config/dx/default.env or .dx.env" >&2
-    exit 1
+    return 1
   fi
 }
 
@@ -137,7 +137,7 @@ config_validate_github() {
   if [[ ${#missing[@]} -gt 0 ]]; then
     echo "❌ GitHub not configured (missing: ${missing[*]})." >&2
     echo "👉 Add GITHUB_TOKEN to ~/.config/dx/default.env or .dx.env" >&2
-    exit 1
+    return 1
   fi
 }
 
@@ -296,7 +296,7 @@ cmd_auth_profile() {
     return 0
   fi
 
-  _validate_profile_name "$name" || exit 1
+  _validate_profile_name "$name" || return 1
 
   local profiles_dir="$HOME/.config/dx/profiles"
   mkdir -p "$profiles_dir"
@@ -335,13 +335,13 @@ EOF
 
 cmd_auth_profile_delete() {
   local name="${1:-}"
-  [[ -n "$name" ]] || { echo "Usage: dx auth profile delete <profile>" >&2; exit 1; }
-  _validate_profile_name "$name" || exit 1
+  [[ -n "$name" ]] || { echo "Usage: dx auth profile delete <profile>" >&2; return 1; }
+  _validate_profile_name "$name" || return 1
 
   local profile_file="$HOME/.config/dx/profiles/${name}.env"
   if [[ ! -f "$profile_file" ]]; then
     echo "❌ Profile not found: $profile_file" >&2
-    exit 1
+    return 1
   fi
 
   rm -f "$profile_file"
@@ -383,13 +383,13 @@ cmd_auth_default() {
     return 0
   fi
 
-  _validate_profile_name "$name" || exit 1
+  _validate_profile_name "$name" || return 1
 
   local profile_file="$HOME/.config/dx/profiles/${name}.env"
   if [[ ! -f "$profile_file" ]]; then
     echo "❌ Profile not found: $profile_file" >&2
     echo "👉 Create it with: dx auth profile $name" >&2
-    exit 1
+    return 1
   fi
 
   mkdir -p "$(dirname "$default_file")"
@@ -406,25 +406,25 @@ cmd_auth_default() {
 # ---------------------------------------------------------------------------
 cmd_auth_switch() {
   local name="${1:-}"
-  [[ -n "$name" ]] || { echo "Usage: dx auth switch <profile> [--save]" >&2; exit 1; }
+  [[ -n "$name" ]] || { echo "Usage: dx auth switch <profile> [--save]" >&2; return 1; }
   shift || true
 
   local save=false
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --save) save=true ;;
-      *) echo "Unknown option: $1" >&2; echo "Usage: dx auth switch <profile> [--save]" >&2; exit 1 ;;
+      *) echo "Unknown option: $1" >&2; echo "Usage: dx auth switch <profile> [--save]" >&2; return 1 ;;
     esac
     shift
   done
 
-  _validate_profile_name "$name" || exit 1
+  _validate_profile_name "$name" || return 1
   local profile_file="$HOME/.config/dx/profiles/${name}.env"
 
   if [[ ! -f "$profile_file" ]]; then
     echo "❌ Profile not found: $profile_file" >&2
     echo "👉 Create it with: dx auth profile $name" >&2
-    exit 1
+    return 1
   fi
 
   if $save; then
