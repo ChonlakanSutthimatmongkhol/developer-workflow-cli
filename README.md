@@ -169,7 +169,8 @@ dx jira read <TICKET|URL>            # human-readable
 dx jira read <TICKET|URL> --ai       # compact for AI (saves tokens)
 dx jira read <TICKET|URL> --raw      # raw JSON
 dx jira list <PROJECT-KEY>           # list open tickets
-dx jira search "<query>"             # JQL or text search
+dx jira search "<query>"             # text search (default)
+dx jira search "<query>" --jql       # treat query as raw JQL
 dx jira open <TICKET|URL>            # open in browser
 ```
 

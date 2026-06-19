@@ -254,21 +254,41 @@ PYEOF
 }
 
 atlassian_search() {
-  local query="${1:?Usage: dx jira search \"JQL or text\"}"
+  local query=""
+  local mode="text"   # text|jql
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --jql) mode="jql" ;;
+      --text) mode="text" ;;
+      --help|-h)
+        echo "Usage: dx jira search <query> [--text|--jql]"
+        return 0
+        ;;
+      *)
+        if [[ -z "$query" ]]; then query="$1"; else query="$query $1"; fi
+        ;;
+    esac
+    shift
+  done
+  [[ -n "$query" ]] || { echo "Usage: dx jira search <query> [--text|--jql]" >&2; return 1; }
+
   local jql
-  if [[ "$query" != *" = "* && "$query" != *" AND "* && "$query" != *" OR "* ]]; then
-    jql="text ~ \"${query}\" ORDER BY updated DESC"
-  else
+  if [[ "$mode" == "jql" ]]; then
     jql="$query"
+  else
+    # Escape embedded quotes for safe text search
+    local safe="${query//\"/\\\"}"
+    jql="text ~ \"${safe}\" ORDER BY updated DESC"
   fi
+
   local encoded
   encoded=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$jql")
   local json
   json=$(_jira_get "/search/jql?jql=${encoded}&maxResults=20&fields=summary,status,issuetype,project")
 
   DX_JSON="$json" python3 - <<'PYEOF'
-import os, json
-data   = json.loads(os.environ["DX_JSON"])
+import json, os
+data = json.loads(os.environ["DX_JSON"])
 issues = data.get("issues", [])
 print(f"{'KEY':<15} {'TYPE':<12} {'STATUS':<20} {'SUMMARY'}")
 print("-" * 80)
