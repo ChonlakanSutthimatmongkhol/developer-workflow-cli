@@ -293,19 +293,20 @@ atlassian_confluence() {
     -H "Accept: application/json" \
     "${confluence_base}/rest/api/content/${page_id}?expand=body.storage,space,ancestors,metadata.labels,version")
 
-  python3 - "$json" "$input" "$ai" <<'PYEOF'
+  python3 - "$json" "$input" "$ai" "$confluence_base" <<'PYEOF'
 import sys, json, re
 
 data      = json.loads(sys.argv[1])
 input_url = sys.argv[2]
 ai_mode   = sys.argv[3] == "true"
+base_url  = sys.argv[4].rstrip("/")
 page_id   = data.get("id", "")
 title     = data.get("title", "")
 space     = data.get("space", {}).get("name", "")
 version   = data.get("version", {}).get("number", "")
 labels    = [l["name"] for l in data.get("metadata", {}).get("labels", {}).get("results", [])]
 ancestors = [a["title"] for a in data.get("ancestors", [])]
-url = input_url if input_url.startswith("http") else f"https://kkps.atlassian.net/wiki/pages/{page_id}"
+url = input_url if input_url.startswith("http") else f"{base_url}/pages/{page_id}"
 
 html = data.get("body", {}).get("storage", {}).get("value", "")
 
