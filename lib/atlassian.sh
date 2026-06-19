@@ -6,7 +6,7 @@
 
 # ---------------------------------------------------------------------------
 # Extract ticket ID from URL or plain ID
-# e.g. https://kkps.atlassian.net/browse/DE-1234 → DE-1234
+# e.g. https://yourco.atlassian.net/browse/DE-1234 → DE-1234
 # ---------------------------------------------------------------------------
 _parse_ticket() {
   local input="$1"
