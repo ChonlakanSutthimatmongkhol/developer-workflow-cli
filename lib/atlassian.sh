@@ -43,6 +43,22 @@ _jira_get() {
     "${JIRA_URL}/rest/api/3${path}"
 }
 
+# Returns: SUMMARY\nURL\n
+_atlassian_ticket_summary_url() {
+  local ticket="$1"
+  local json
+  json=$(_jira_get "/issue/${ticket}?fields=summary")
+  DX_JSON="$json" python3 - "$JIRA_URL" "$ticket" <<'PYEOF'
+import json, os, sys
+data = json.loads(os.environ["DX_JSON"])
+summary = (data.get("fields", {}) or {}).get("summary", "")
+base    = sys.argv[1].rstrip("/")
+ticket  = sys.argv[2]
+print(summary)
+print(f"{base}/browse/{ticket}")
+PYEOF
+}
+
 # ---------------------------------------------------------------------------
 # Commands
 # ---------------------------------------------------------------------------

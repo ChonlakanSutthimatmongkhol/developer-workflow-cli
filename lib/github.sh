@@ -36,12 +36,12 @@ github_pr_open() {
   git_confirm_create "PR" "$ticket" "$target_branch" "$yes" || return 1
 
   # Fetch Jira ticket info
-  local jira_output
-  jira_output=$(atlassian_read "$ticket" --ai)
+  local DX_JIRA_SUMMARY DX_JIRA_URL
+  _dx_jira_load_basics "$ticket" || { echo "Failed to fetch Jira ticket: $ticket" >&2; return 1; }
 
   local jira_url pr_title changelog description
-  jira_url=$(_jira_ticket_url "$jira_output")
-  pr_title=$(_jira_title_from_ai "$ticket" "$jira_output" "$commit_type")
+  jira_url="$DX_JIRA_URL"
+  pr_title="[${ticket}] ${commit_type}: ${DX_JIRA_SUMMARY}"
 
   # Generate changelog
   if [[ -n "$changelog_override" ]]; then

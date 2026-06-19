@@ -8,21 +8,14 @@ _dx_glab() {
   GITLAB_HOST="${GITLAB_HOST:-}" GITLAB_TOKEN="${GITLAB_TOKEN:-}" glab "$@"
 }
 
-# Extract Jira ticket URL from atlassian_read --ai output
-_jira_ticket_url() {
-  local output="$1"
-  echo "$output" | grep '^URL:' | head -1 | sed 's/^URL: //'
-}
-
-# Build MR/PR title → "[DE-1234] type: Summary text"
-_jira_title_from_ai() {
+# Reads SUMMARY + URL via Jira API (single source of truth).
+# Sets globals: DX_JIRA_SUMMARY DX_JIRA_URL
+_dx_jira_load_basics() {
   local ticket="$1"
-  local output="$2"
-  local type="${3:-feat}"
-  # First line format: "# [DE-1234] Summary text"
-  local summary
-  summary=$(echo "$output" | head -1 | sed 's/^# \[[^]]*\] //')
-  echo "[${ticket}] ${type}: ${summary}"
+  local out
+  out=$(_atlassian_ticket_summary_url "$ticket") || return 1
+  DX_JIRA_SUMMARY="$(printf '%s\n' "$out" | sed -n '1p')"
+  DX_JIRA_URL="$(printf '%s\n' "$out" | sed -n '2p')"
 }
 
 # Render the MR/PR description template (safe; see lib/template.sh)
@@ -71,12 +64,12 @@ gitlab_mr_open() {
   git_confirm_create "MR" "$ticket" "$target_branch" "$yes" || return 1
 
   # Fetch Jira ticket info
-  local jira_output
-  jira_output=$(atlassian_read "$ticket" --ai)
+  local DX_JIRA_SUMMARY DX_JIRA_URL
+  _dx_jira_load_basics "$ticket" || { echo "Failed to fetch Jira ticket: $ticket" >&2; return 1; }
 
   local jira_url mr_title changelog description
-  jira_url=$(_jira_ticket_url "$jira_output")
-  mr_title=$(_jira_title_from_ai "$ticket" "$jira_output" "$commit_type")
+  jira_url="$DX_JIRA_URL"
+  mr_title="[${ticket}] ${commit_type}: ${DX_JIRA_SUMMARY}"
 
   # Generate changelog
   if [[ -n "$changelog_override" ]]; then
