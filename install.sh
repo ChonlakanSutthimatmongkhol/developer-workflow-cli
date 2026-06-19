@@ -15,8 +15,14 @@ INSTALL_DIR="$HOME/.local/share/dx"
 BIN_DIR="$HOME/.local/bin"
 ZSHRC="$HOME/.zshrc"
 
-# Detect whether we're running from inside the repo or standalone via curl
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Detect whether we're running from inside the repo or standalone via curl.
+# When invoked as `curl ... | bash`, BASH_SOURCE[0] can be unset under `set -u`.
+SCRIPT_PATH="${BASH_SOURCE[0]:-}"
+if [[ -n "$SCRIPT_PATH" ]]; then
+  SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+else
+  SCRIPT_DIR="$PWD"
+fi
 if [[ -f "$SCRIPT_DIR/bin/dx" ]]; then
   SRC_DIR="$SCRIPT_DIR"
 else
